@@ -1,0 +1,23 @@
+// A bank of everyday words to draw from.
+const WORD_BANK = [
+  "amber", "anchor", "ash", "banner", "basil", "beacon", "birch", "blaze",
+  "bloom", "boulder", "breeze", "bridge", "brook", "canvas", "canyon",
+  "cascade", "cedar", "cliff", "clover", "comet", "compass", "coral",
+  "cove", "crest", "crystal", "current", "dawn", "dew", "dune", "dusk",
+  "ember", "falcon", "feather", "fern", "field", "flame", "flint",
+  "forest", "fountain", "frost", "garden", "glacier", "glow", "granite",
+  "gravel", "grove", "harbor", "harvest", "hawk", "haze", "hearth",
+  "hill", "horizon", "hollow", "ivory", "ivy", "jade", "juniper",
+  "kestrel", "lagoon", "lantern", "leaf", "ledge", "linden", "lotus",
+  "lumen", "lynx", "maple", "marble", "marsh", "meadow", "mesa", "mist",
+  "moss", "mountain", "myrrh", "nectar", "nest", "nova", "oak", "oasis",
+  "obsidian", "opal", "orchard", "otter", "paddle", "peak", "pearl",
+  "pebble", "petal", "pine", "plume", "pond", "prairie", "quartz",
+  "quill", "rain", "raven", "reed", "reef", "ridge", "river", "robin",
+  "rock", "rose", "sage", "sail", "sand", "sapphire", "shale", "shore",
+  "sierra", "silver", "sky", "slate", "sliver", "solstice", "spark",
+  "spring", "spruce", "star", "stone", "storm", "stream", "summit",
+  "sunrise", "swan", "tempest", "thistle", "thunder", "tide", "timber",
+  "topaz", "trail", "tundra", "valley", "velvet", "vine", "violet",
+  "wave", "willow", "wind", "wing", "wren", "zephyr",
+];

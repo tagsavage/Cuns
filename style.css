@@ -1,0 +1,123 @@
+:root {
+  --bg: #f4f2ec;
+  --card-bg: #ffffff;
+  --text: #24211d;
+  --muted: #6b6459;
+  --accent: #d9622b;
+  --accent-hover: #c1531f;
+  --border: #e6e1d6;
+  --word-bg: #f8f6f0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1a17;
+    --card-bg: #262320;
+    --text: #f2ede3;
+    --muted: #a89f8f;
+    --accent: #e77a44;
+    --accent-hover: #f08a58;
+    --border: #3a352e;
+    --word-bg: #2e2b26;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  padding: 24px;
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 40px 36px;
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: 1.75rem;
+}
+
+.subtitle {
+  margin: 0 0 28px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.word-list {
+  list-style: none;
+  margin: 0 0 28px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.word-list li {
+  background: var(--word-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: capitalize;
+  opacity: 0;
+  transform: translateY(6px);
+  animation: fade-in 0.35s ease forwards;
+}
+
+.word-list li:nth-child(1) { animation-delay: 0.02s; }
+.word-list li:nth-child(2) { animation-delay: 0.08s; }
+.word-list li:nth-child(3) { animation-delay: 0.14s; }
+.word-list li:nth-child(4) { animation-delay: 0.2s; }
+.word-list li:nth-child(5) { animation-delay: 0.26s; }
+
+@keyframes fade-in {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+button#regenerate-btn {
+  appearance: none;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 12px 28px;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+button#regenerate-btn:hover {
+  background: var(--accent-hover);
+}
+
+button#regenerate-btn:active {
+  transform: scale(0.97);
+}
+
+button#regenerate-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
