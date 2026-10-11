@@ -15,6 +15,7 @@
   color-scheme: dark;
 }
 html, body { height: 100%; }
+[hidden] { display: none !important; }
 body {
   margin: 0; background: var(--black); color: var(--slate);
   font-family: var(--ui-face);
@@ -41,6 +42,7 @@ body {
   display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; justify-content: space-between;
   font-family: var(--slate-face); font-size: 13px; color: var(--dim);
   border-top: 1px solid var(--line); padding-top: 10px;
+  position: relative; z-index: 7;
 }
 #controls .group { display: flex; gap: 6px; flex-wrap: wrap; }
 button {
@@ -53,10 +55,108 @@ button[aria-pressed="true"] { color: var(--slate); border-color: var(--rust); }
 #note { font-size: 12px; max-width: 46ch; }
 @media (max-width: 520px) { #note { display: none; } }
 @media (prefers-reduced-motion: reduce) { #slate { transition: none; } }
+
+/* ---- the phone: the one cool, modern object in a 1970 frame ---- */
+:root {
+  --glass: #0c121b;
+  --glass-2: #141c28;
+  --phone-ink: #eef3ff;
+  --phone-dim: #8995ab;
+  --me: #2f6fdd;
+  --them: #262c36;
+}
+.stage-btn {
+  position: absolute; left: 50%; bottom: 7%; transform: translateX(-50%);
+  font-family: var(--slate-face); color: var(--slate); background: rgba(11,10,9,.55);
+  border: 1px solid rgba(233,225,207,.35); padding: 8px 14px; letter-spacing: .08em;
+  transition: opacity .8s ease;
+}
+.stage-btn:hover { border-color: var(--slate); color: var(--slate); }
+#scrim {
+  position: fixed; inset: 0; background: rgba(5,6,9,.55); z-index: 5;
+  transition: opacity .6s ease;
+}
+#phone {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 8;
+  width: min(340px, calc(100vw - 32px)); height: min(660px, calc(100% - 32px));
+  background: var(--glass); color: var(--phone-ink); border-radius: 38px;
+  border: 7px solid #050608; box-shadow: 0 0 60px rgba(70,120,255,.28), 0 0 0 1px #2a3140;
+  display: flex; flex-direction: column; overflow: hidden;
+  font-family: -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+#phone .bar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 22px 4px; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+#phone .who {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 4px 0 10px; border-bottom: 1px solid #1e2532; background: var(--glass-2);
+}
+#phone .avatar {
+  width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+  background: linear-gradient(#7d8aa3, #4f5b72); font-weight: 600; font-size: 18px;
+}
+#phone .who span { font-size: 12px; color: var(--phone-dim); }
+#thread {
+  flex: 1; overflow-y: auto; padding: 12px 12px 6px; display: flex; flex-direction: column; gap: 3px;
+  min-height: 0;
+}
+.day { text-align: center; font-size: 11px; color: var(--phone-dim); margin: 10px 0 6px; }
+.msg {
+  max-width: 76%; padding: 7px 12px; border-radius: 18px; font-size: 15px; line-height: 1.3;
+  overflow-wrap: anywhere; white-space: pre-wrap;
+}
+.msg.them { align-self: flex-start; background: var(--them); }
+.msg.me { align-self: flex-end; background: var(--me); color: #fff; }
+.msg.me + .msg.them, .msg.them + .msg.me { margin-top: 8px; }
+.receipt { align-self: flex-end; font-size: 11px; color: var(--phone-dim); margin: 2px 4px 4px; }
+.typing { align-self: flex-start; background: var(--them); border-radius: 18px; padding: 10px 14px; display: flex; gap: 4px; }
+.typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--phone-dim); animation: blink 1.2s infinite; }
+.typing i:nth-child(2) { animation-delay: .2s; } .typing i:nth-child(3) { animation-delay: .4s; }
+@keyframes blink { 0%, 60%, 100% { opacity: .3 } 30% { opacity: 1 } }
+#compose { display: flex; gap: 8px; padding: 8px 10px 6px; align-items: flex-end; }
+#compose textarea {
+  flex: 1; min-width: 0; resize: none; background: #1a212d; color: var(--phone-ink); border: 1px solid #2a3343;
+  border-radius: 18px; padding: 8px 12px; font-size: 15px; line-height: 1.3; font-family: inherit; max-height: 96px;
+}
+#compose textarea:focus { outline: none; border-color: var(--me); }
+#send {
+  width: 34px; height: 34px; border-radius: 50%; border: 0; padding: 0; background: var(--me); color: #fff;
+  font-size: 18px; line-height: 1; text-transform: none; flex: none;
+}
+#send:disabled { background: #2a3343; color: var(--phone-dim); cursor: default; }
+#putdown {
+  margin: 0 auto 10px; border: 0; color: var(--phone-dim); font-size: 12px; font-family: inherit;
+  text-transform: none; letter-spacing: 0; padding: 6px;
+}
+#putdown:hover { color: var(--phone-ink); }
+#phone-note { font-size: 12px; color: #f0b27a; text-align: center; padding: 0 16px 8px; }
+#thoughts {
+  position: fixed; z-index: 8; left: 16px; top: 16px; width: min(280px, calc(100vw - 32px));
+  font-family: var(--slate-face); font-size: 13px; color: var(--slate); line-height: 1.4;
+  background: rgba(11,10,9,.85); border: 1px solid var(--line); padding: 12px 14px;
+}
+#thoughts .meter { height: 4px; background: var(--line); margin: 6px 0 8px; }
+#thoughts .meter b { display: block; height: 100%; background: var(--rust); transition: width .8s ease; }
+#thoughts .label { color: var(--dim); text-transform: uppercase; font-size: 11px; letter-spacing: .08em; }
+#ending {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end;
+  gap: 14px; padding: 0 3.2% 6%; background: linear-gradient(transparent 40%, rgba(0,0,0,.6));
+  font-family: var(--slate-face); color: var(--slate); font-size: clamp(13px, 1.7vw, 20px);
+}
+#ending .time { color: var(--dim); font-size: .8em; letter-spacing: .06em; }
+#ending p { margin: 0; max-width: 40ch; text-wrap: balance; }
+#ending button { font-size: 12px; }
 </style>
 
 <div id="stage">
   <div id="slate"><div class="place"></div><div class="time"></div></div>
+  <button id="pickup" class="stage-btn" hidden>Pick up the phone</button>
+  <div id="ending" hidden>
+    <div class="time"></div>
+    <p></p>
+    <button id="again">Start the night over</button>
+  </div>
 </div>
 <div id="controls">
   <div class="group" role="group" aria-label="Scene">
@@ -66,8 +166,28 @@ button[aria-pressed="true"] { color: var(--slate); border-color: var(--rust); }
   <div id="note">Same room. Different day.</div>
   <div class="group">
     <button id="b-sound" aria-pressed="false">Sound</button>
+    <button id="b-thoughts" aria-pressed="false" title="Show what Dev is privately thinking (for testing)">Dev's side</button>
     <button id="b-grade" aria-pressed="true">Film</button>
   </div>
+</div>
+
+<div id="scrim" hidden></div>
+<div id="phone" hidden role="dialog" aria-label="Messages with Dev">
+  <div class="bar"><span id="clock">11:52</span><span>5G ▮▮▮</span></div>
+  <div class="who"><div class="avatar">D</div><span>Dev</span></div>
+  <div id="thread" aria-live="polite"></div>
+  <div id="phone-note" hidden></div>
+  <form id="compose">
+    <textarea id="draft" rows="1" placeholder="Text message" aria-label="Your reply to Dev"></textarea>
+    <button id="send" type="submit" aria-label="Send" disabled>↑</button>
+  </form>
+  <button id="putdown" type="button">Put the phone down</button>
+</div>
+<div id="thoughts" hidden>
+  <div class="label">How Dev feels about you</div>
+  <div class="meter"><b style="width:62%"></b></div>
+  <div class="label">Dev, privately</div>
+  <div id="thought-text">Haven't heard back yet.</div>
 </div>
 
 <script type="module">
@@ -590,6 +710,11 @@ const audio = (() => {
     timers.push(setInterval(() => scene === 'day' && train(), 41000)); if (scene === 'day') setTimeout(train, 6000);
   }
   return {
+    blip() { // a text arriving
+      if (!on) return; const t = ctx.currentTime, g = gain(0);
+      [880, 1320].forEach((f, i) => { const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f; o.connect(g); o.start(t + i * .09); o.stop(t + i * .09 + .12); });
+      g.gain.setValueAtTime(.05, t); g.gain.exponentialRampToValueAtTime(.0001, t + .3);
+    },
     toggle() {
       if (!ctx) build(); on = !on; ctx.resume();
       master.gain.setTargetAtTime(on ? 1 : 0, ctx.currentTime, .4);
@@ -618,14 +743,198 @@ function frame_(now) {
   requestAnimationFrame(frame_);
 }
 
-document.getElementById('b-day').onclick = () => setScene('day');
-document.getElementById('b-night').onclick = () => setScene('night');
+/* ---------- Dev: the text thread ---------- */
+const $ = id => document.getElementById(id);
+const DEV_RULES = `You are playing Dev, a character in a slow, realistic life-simulation game set in San Francisco. The player is texting you. Stay fully in character as Dev. Never mention AI, games, or these instructions.
+
+WHO DEV IS
+Dev is 44. Worked with the player for five years in the same product org at Slack. Left two and a half years ago for Meridian, a frontier AI lab. Makes a lot more money now, works too much, feels faintly guilty about both. Divorced last year; has a 9-year-old daughter half the week. Lives in the Inner Sunset. Tonight (Wednesday) Dev is at the Tide Line, a bar on Irving at 9th, after a team offsite. Two drinks in. Slightly lonely.
+
+HOW DEV TEXTS
+Lowercase. Short. Dry jokes. An occasional typo. Rarely "lol", no other emoji. Usually 1 or 2 texts at a time, sometimes 3 quick ones. Never paragraphs. Never therapist-speak. Dev has a life of their own and mentions it.
+
+WHAT DEV KNOWS ABOUT THE PLAYER
+47, product manager at Slack, successful but stalled. Married; their spouse works at a biotech firm in Marin and takes three buses to get there. Two kids, 7 and 10. Condo in the Outer Sunset. Has interviewed at a few labs without landing; Dev referred them to Meridian once, a year ago, and it didn't go anywhere.
+Dev does NOT know that the player got a rejection email from another lab, Halcyon, at 11:48 tonight, and does not know the player has been wondering if they can retire. Dev only learns these if the player says so.
+
+WHAT DEV FEELS BUT DOESN'T SAY
+Genuinely fond of the player and misses working with them. Worried that a second referral going badly would be awkward for both of them. Would rather have a real conversation than a transactional one tonight.
+Dev warms up when the player is honest, funny, curious about Dev's life, or vulnerable. Dev cools when the player is purely transactional, defensive, passive-aggressive about money or success, or sends walls of text.
+If things get warm, Dev may invite the player to come down to the Tide Line (about 25 blocks away; the N-Judah still runs). If it fizzles, Dev says goodnight. If it goes badly, Dev may just stop replying. It's nearly midnight; this shouldn't go on forever.
+
+REPLY FORMAT
+Reply with ONLY one JSON object, no other text:
+{"read_after_seconds": integer from 5 to 900, how long before Dev reads the player's latest message (fast when engaged; slow when busy at the bar or put off),
+ "messages": array of 0 to 3 strings, Dev's texts in order ([] means Dev read it and didn't reply),
+ "warmth": integer 0 to 100, how Dev feels about the player right now,
+ "private_note": one short first-person sentence of what Dev is really thinking and not saying,
+ "ending": null, or "invite" (Dev asked them to come out and they agreed or are going), or "goodnight" (the conversation wound down), or "left_on_read" (Dev has stopped replying for the night),
+ "ending_line": null unless ending is set; then a film-slate caption of what the player does next: second person, present tense, under 14 words, plain and concrete, e.g. "You find your shoes in the dark and check the N-Judah times."}
+Only set ending when the conversation has truly reached that point.`;
+
+const HISTORY = [
+  { day: 'Saturday' },
+  { from: 'me', text: 'taking the kids somewhere tomorrow. randall museum again or is there a better move' },
+  { from: 'them', text: 'musée mécanique. trust me' },
+  { from: 'them', text: 'bring like $20 in quarters' },
+  { from: 'me', text: 'the fortune teller scared the 7 year old. 10/10' },
+  { day: 'Today 10:15 PM' },
+  { from: 'them', text: "lol we're hiring again. want me to put your name in?" },
+];
+
+const chat = { turns: [], warmth: 62, minutes: 0, busy: false, over: false, sample: undefined, ctl: null };
+let sampleReady = (async () => {
+  try { chat.sample = window.claude?.use ? await window.claude.use('sample') : null; } catch { chat.sample = null; }
+  return chat.sample;
+})();
+
+function clockText() {
+  const m = 52 + chat.minutes, h = 11 + Math.floor(m / 60), mm = m % 60;
+  const hh = ((h - 1) % 12) + 1, ap = h >= 12 && h < 24 ? 'A.M.' : 'P.M.';
+  return { short: `${hh}:${String(mm).padStart(2, '0')}`, long: `${hh}:${String(mm).padStart(2, '0')} ${ap}` };
+}
+function addEl(cls, text, tag = 'div') {
+  const el = document.createElement(tag); el.className = cls; if (text) el.textContent = text;
+  $('thread').append(el); $('thread').scrollTop = $('thread').scrollHeight; return el;
+}
+function renderHistory() {
+  $('thread').replaceChildren();
+  for (const h of HISTORY) h.day ? addEl('day', h.day) : addEl('msg ' + h.from, h.text);
+}
+function setThoughts(note) {
+  $('thoughts').querySelector('.meter b').style.width = chat.warmth + '%';
+  if (note) $('thought-text').textContent = note;
+}
+function phoneNote(text) { $('phone-note').hidden = !text; $('phone-note').textContent = text || ''; }
+
+async function openPhone() {
+  $('pickup').hidden = true; $('scrim').hidden = false; $('phone').hidden = false;
+  $('clock').textContent = clockText().short;
+  if (!$('thread').childElementCount) renderHistory();
+  $('draft').focus();
+  const s = await sampleReady;
+  if (!s) { phoneNote("Dev can't answer in this view. Open this page on claude.ai, signed in, to text them."); }
+}
+function closePhone() { $('scrim').hidden = true; $('phone').hidden = true; }
+
+function endNight(line) {
+  chat.over = true; chat.ctl?.abort(); closePhone();
+  $('pickup').hidden = true;
+  $('ending').querySelector('.time').textContent = clockText().long;
+  $('ending').querySelector('p').textContent = line;
+  $('ending').hidden = false;
+}
+function resetNight() {
+  chat.ctl?.abort();
+  Object.assign(chat, { turns: [], warmth: 62, minutes: 0, busy: false, over: false });
+  $('ending').hidden = true; $('thread').replaceChildren(); phoneNote('');
+  $('draft').value = ''; $('send').disabled = true; $('draft').disabled = false;
+  setThoughts("Haven't heard back yet."); $('pickup').hidden = true;
+}
+
+function transcript() {
+  const lines = HISTORY.filter(h => !h.day).map(h => (h.from === 'me' ? 'PLAYER: ' : 'DEV: ') + h.text);
+  for (const t of chat.turns) lines.push((t.from === 'me' ? 'PLAYER: ' : 'DEV: ') + t.text);
+  return lines.join('\n');
+}
+
+async function send(text) {
+  if (chat.busy || chat.over || !text.trim()) return;
+  const s = await sampleReady;
+  if (!s) { phoneNote("Dev can't answer in this view. Open this page on claude.ai, signed in, to text them."); return; }
+  chat.busy = true; $('send').disabled = true;
+  chat.minutes += 1; $('clock').textContent = clockText().short;
+  addEl('msg me', text); chat.turns.push({ from: 'me', text });
+  const receipt = addEl('receipt', 'Delivered');
+  const nMine = chat.turns.filter(t => t.from === 'me').length;
+  const prompt = `${DEV_RULES}
+
+It is ${clockText().long} on Wednesday. Dev's warmth toward the player before this message: ${chat.warmth}.${nMine >= 9 ? '\nThe conversation has gone on a while. Wind it toward an ending now.' : ''}
+
+THE THREAD SO FAR (oldest first):
+${transcript()}
+
+Reply as Dev to the player's latest message, as JSON only.`;
+  chat.ctl = new AbortController();
+  let r;
+  try {
+    r = await s.json(prompt, { cache: false, signal: chat.ctl.signal });
+  } catch (e) {
+    chat.busy = false; $('send').disabled = !$('draft').value.trim();
+    if (e.code === 'cancelled') return;
+    receipt.textContent = 'Not delivered';
+    const copy = {
+      not_granted: "Texting Dev needs your OK to use Claude. Reload the page to be asked again.",
+      sampling_disabled: "Claude isn't available on this account, so Dev can't reply.",
+      rate_limited: "Too many messages too fast. Wait a minute, then send again.",
+      session_expired: "You've been signed out of Claude. Sign in again, then send.",
+      refused: "That message didn't go through. Try saying it another way.",
+    }[e.code] || "The message didn't go through. Send it again.";
+    phoneNote(copy);
+    chat.turns.pop(); return;
+  }
+  phoneNote('');
+  const msgs = Array.isArray(r?.messages) ? r.messages.map(String).filter(m => m.trim()).slice(0, 3) : [];
+  const readAfter = Math.max(5, Math.min(900, Number(r?.read_after_seconds) || 30));
+  chat.warmth = Math.max(0, Math.min(100, Math.round(Number(r?.warmth) || chat.warmth)));
+  setThoughts(String(r?.private_note || ''));
+
+  // Read receipt, then typing, then texts arrive one by one.
+  chat.minutes += Math.round(readAfter / 60);
+  const wait = ms => new Promise(res => setTimeout(res, ms));
+  await wait(Math.min(4000, 600 + readAfter * 8));
+  if (chat.over) return;
+  $('clock').textContent = clockText().short;
+  receipt.textContent = 'Read ' + clockText().short;
+  for (const m of msgs) {
+    const typing = addEl('typing'); typing.innerHTML = '<i></i><i></i><i></i>';
+    await wait(Math.min(3500, 700 + m.length * 45));
+    typing.remove(); if (chat.over) return;
+    addEl('msg them', m); chat.turns.push({ from: 'them', text: m }); audio.blip();
+    await wait(350);
+  }
+  chat.busy = false; $('send').disabled = !$('draft').value.trim();
+
+  const ending = ['invite', 'goodnight', 'left_on_read'].includes(r?.ending) ? r.ending : null;
+  if (ending) {
+    $('draft').disabled = true; $('send').disabled = true;
+    const fallback = { invite: 'You find your shoes in the dark.', goodnight: 'You plug in the phone and turn off the lamp.', left_on_read: 'You watch the screen until it goes dark.' }[ending];
+    await wait(ending === 'left_on_read' ? 2500 : 4500);
+    if (!chat.over) endNight(String(r?.ending_line || fallback));
+  }
+}
+
+$('compose').addEventListener('submit', e => { e.preventDefault(); const v = $('draft').value; $('draft').value = ''; $('draft').style.height = ''; $('send').disabled = true; send(v); });
+$('draft').addEventListener('input', () => {
+  $('send').disabled = chat.busy || !$('draft').value.trim();
+  $('draft').style.height = 'auto'; $('draft').style.height = $('draft').scrollHeight + 'px';
+});
+$('draft').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('compose').requestSubmit(); } });
+$('pickup').onclick = openPhone;
+$('putdown').onclick = () => endNight(chat.turns.length ? 'You set the phone face down. The fridge hums.' : 'You turn the phone face down without answering. The fridge hums.');
+$('again').onclick = () => { resetNight(); setScene('night'); };
+$('scrim').onclick = () => { closePhone(); if (!chat.over) $('pickup').hidden = false; };
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('phone').hidden) $('scrim').onclick(); });
+$('b-thoughts').onclick = e => { const on = $('thoughts').hidden; $('thoughts').hidden = !on; e.currentTarget.setAttribute('aria-pressed', on); };
+
+// At night, the phone becomes something you can pick up once the zoom has had a moment.
+let pickupTimer;
+function goTo(name) {
+  setScene(name); clearTimeout(pickupTimer); closePhone();
+  if (name === 'day') { $('pickup').hidden = true; $('ending').hidden = true; return; }
+  if (chat.over) resetNight();
+  pickupTimer = setTimeout(() => { if (current === 'night' && !chat.over && $('phone').hidden) $('pickup').hidden = false; }, 9000);
+}
+window.__goTo = goTo;
+
+document.getElementById('b-day').onclick = () => goTo('day');
+document.getElementById('b-night').onclick = () => goTo('night');
 document.getElementById('b-sound').onclick = e => e.currentTarget.setAttribute('aria-pressed', audio.toggle());
 document.getElementById('b-grade').onclick = e => { const v = film.uniforms.gradeOn.value ? 0 : 1; film.uniforms.gradeOn.value = v; e.currentTarget.setAttribute('aria-pressed', !!v); };
 window.__jump = s => { timeOffset = s; };
 window.__scene = setScene;
 
 resize();
-setScene(location.hash === '#night' ? 'night' : 'day');
+goTo(location.hash === '#night' ? 'night' : 'day');
 requestAnimationFrame(frame_);
 </script>
