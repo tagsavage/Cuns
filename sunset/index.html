@@ -422,7 +422,7 @@ windowLight.castShadow = true; windowLight.shadow.mapSize.set(1024, 1024); windo
 Object.assign(windowLight.shadow.camera, { left: -5, right: 5, top: 5, bottom: -5, near: 1, far: 20 });
 scene.add(windowLight, windowLight.target);
 const fillLight = new THREE.PointLight(0xe8dcc4, 0, 8, 2); fillLight.position.set(0, 1.6, -2.2); scene.add(fillLight);
-const tableLamp = new THREE.PointLight(0xffb066, 0, 6, 2); tableLamp.position.set(-2.5, .95, -3.1); tableLamp.castShadow = true; tableLamp.shadow.radius = 6; tableLamp.shadow.mapSize.set(512, 512); scene.add(tableLamp);
+const tableLamp = new THREE.PointLight(0xffd6b0, 0, 6, 2); tableLamp.position.set(-2.5, .95, -3.1); tableLamp.castShadow = true; tableLamp.shadow.radius = 6; tableLamp.shadow.mapSize.set(512, 512); scene.add(tableLamp);
 const phoneGlow = new THREE.PointLight(0x6f9cff, 0, .7, 2); phoneGlow.position.set(-.98, .55, -1.08); scene.add(phoneGlow);
 const sodium = new THREE.PointLight(0xff9a3c, 0, 40, 1.2); sodium.position.set(4, 5, -10.5); scene.add(sodium);
 const sodiumIn = new THREE.SpotLight(0xff9440, 0, 14, .5, .9, 1); sodiumIn.position.set(2.5, 4.5, -9); sodiumIn.target.position.set(-1, 0, -1); scene.add(sodiumIn, sodiumIn.target);
@@ -431,12 +431,12 @@ const sodiumIn = new THREE.SpotLight(0xff9440, 0, 14, .5, .9, 1); sodiumIn.posit
 const SCENES = {
   day: {
     place: 'Outer Sunset — 46th Ave. at Judah', time: 'Tuesday, 4:40 P.M. Fog.',
-    fog: 0xbdbbb2, fogD: .034, sky: 0xb9b8b0, exposure: 1.05,
+    fog: 0xbdbbb2, fogD: .034, sky: 0xb9b8b0, exposure: 1.05, sat: 1.18,
     cam: { pos: [2.05, 1.5, 2.35], look: [-1.0, 1.0, -2.9], fov: 46 }, zoomTo: null,
   },
   night: {
     place: 'Same room', time: 'Wednesday, 11:52 P.M.',
-    fog: 0x8a5c36, fogD: .05, sky: 0x6a4527, exposure: 1.05,
+    fog: 0x6e4c34, fogD: .05, sky: 0x4a3426, exposure: 1.15, sat: .9,
     cam: { pos: [2.05, 1.5, 2.35], look: [-1.0, 1.0, -2.9], fov: 46 },
     zoomTo: { look: [-1.05, .51, -1.18], fov: 3.4, seconds: 34 },
   },
@@ -446,14 +446,14 @@ function setScene(name) {
   current = name; const s = SCENES[name]; t0 = performance.now();
   scene.fog = new THREE.FogExp2(s.fog, s.fogD); skyMat.color.set(s.sky);
   const night = name === 'night';
-  hemi.intensity = night ? .05 : 1.25; hemi.color.set(night ? 0x2a3040 : 0xdcd8cc);
-  windowLight.intensity = night ? 0 : 1.1;
+  hemi.intensity = night ? .04 : .85; hemi.color.set(night ? 0x2a3040 : 0xdcd8cc);
+  windowLight.intensity = night ? 0 : 1.7;
   fillLight.intensity = night ? 0 : .45;
   tableLamp.intensity = night ? 1.5 : 0;
-  shadeMat.emissive.set(night ? 0xc98a45 : 0x000000); shadeMat.emissiveIntensity = night ? .9 : 0;
+  shadeMat.emissive.set(night ? 0xd9a873 : 0x000000); shadeMat.emissiveIntensity = night ? .9 : 0;
   phoneGlow.intensity = night ? .3 : 0;
   phoneScreenMat.color.set(night ? 0xffffff : 0x050505);
-  sodium.intensity = night ? 22 : 0; sodiumIn.intensity = night ? .9 : 0;
+  sodium.intensity = night ? 22 : 0; sodiumIn.intensity = night ? .6 : 0;
   outside.traverse(o => { if (o.userData.lit !== undefined) o.material.emissive.set(night && o.userData.lit ? 0xd08a44 : 0x000000); });
   lapWork.g.visible = !night;                          // work laptop put away
   lapKid.lid.rotation.x = night ? -1.45 : -.25;        // kid laptop shut
@@ -471,11 +471,11 @@ function setScene(name) {
 /* ---------- film pass: grade, halation, grain, weave ---------- */
 const rt = new THREE.WebGLRenderTarget(16, 16, { type: THREE.HalfFloatType, samples: 4 });
 const film = new THREE.ShaderMaterial({
-  uniforms: { tDiffuse: { value: rt.texture }, res: { value: new THREE.Vector2(16, 16) }, time: { value: 0 }, exposure: { value: 1 }, gradeOn: { value: 1 }, weave: { value: new THREE.Vector2() } },
+  uniforms: { tDiffuse: { value: rt.texture }, res: { value: new THREE.Vector2(16, 16) }, time: { value: 0 }, exposure: { value: 1 }, sat: { value: 1.18 }, gradeOn: { value: 1 }, weave: { value: new THREE.Vector2() } },
   vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }`,
   fragmentShader: `
     precision highp float; varying vec2 vUv;
-    uniform sampler2D tDiffuse; uniform vec2 res; uniform float time, exposure, gradeOn; uniform vec2 weave;
+    uniform sampler2D tDiffuse; uniform vec2 res; uniform float time, exposure, sat, gradeOn; uniform vec2 weave;
     float hash(vec2 p){ p = fract(p*vec2(443.897,441.423)); p += dot(p, p.yx+19.19); return fract((p.x+p.y)*p.x); }
     vec3 tex(vec2 uv){ return texture2D(tDiffuse, uv).rgb; }
     vec3 aces(vec3 x){ return clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14),0.,1.); }
@@ -488,30 +488,32 @@ const film = new THREE.ShaderMaterial({
       vec3 c = tex(uv);
       // lens softness: the old zooms were never razor sharp
       vec3 soft = (tex(uv+vec2(px.x,0.))+tex(uv-vec2(px.x,0.))+tex(uv+vec2(0.,px.y))+tex(uv-vec2(0.,px.y)))*.25;
-      c = mix(c, soft, .45);
+      c = mix(c, soft, .22);
       // halation: bright things bleed a warm red-orange
       vec3 hal = vec3(0.); float tot = 0.;
       for (int i = 0; i < 12; i++) { float a = float(i)*.5236; for (int r = 1; r <= 2; r++) {
         vec3 s = tex(uv + vec2(cos(a), sin(a))*px*float(r)*7.); hal += max(s - .75, 0.); tot += 1.; } }
-      hal /= tot; c += hal * vec3(1.2, .45, .2) * 2.2;
+      hal /= tot; c += hal * vec3(1.2, .45, .2) * .8;
       c *= exposure * (1. + (hash(vec2(floor(time*24.), 3.)) - .5) * .025);
       // protect saturated blue (the phone) from the grade
       float blue = clamp((c.b - max(c.r, c.g)) * 2.5 - .3, 0., 1.);
       vec3 m = aces(c);
       float l = dot(m, vec3(.2126,.7152,.0722));
-      vec3 graded = mix(vec3(l), m, .72);                  // faded stock
-      graded = pow(graded, vec3(.96, 1.0, 1.08));           // warm cast
-      graded = mix(graded, graded * vec3(1.04, .98, .86), smoothstep(.0, .5, 1.-l)*.6); // brown shadows
-      graded = mix(vec3(.055,.045,.035), vec3(.93,.9,.82), graded); // lifted blacks, cream highlights
-      graded = mix(graded, (graded - .5) * .92 + .5, .5);   // gentle contrast
+      // Eastmancolor print: rich color, real blacks, warm-clean whites
+      vec3 graded = mix(vec3(l), m, sat);                   // saturated stock
+      graded = max(graded, 0.);
+      graded *= vec3(1.03, 1.0, .93);                       // gentle warm balance
+      graded = mix(graded, graded * vec3(1.02, 1.0, .9), smoothstep(.0, .45, 1.-l)*.35); // a little warmth in shadows
+      graded = graded * graded * (3. - 2. * graded) * .35 + graded * .65; // print S-curve: deeper blacks, firm mids
+      graded = mix(vec3(.012,.01,.008), vec3(.985,.97,.93), graded);     // barely lifted blacks, warm-white top
       m = mix(graded, m * vec3(.85, .95, 1.1), blue * .85);
       // vignette
-      vec2 d = vUv - .5; m *= 1. - dot(d, d) * .55;
+      vec2 d = vUv - .5; m *= 1. - dot(d, d) * .4;
       vec3 o = toSRGB(clamp(m, 0., 1.));
       // grain (in display space so it sits on top like real stock)
       float g = hash(vUv * res + fract(time * 24.) * 97.) - .5;
       float g2 = hash(vUv * res * .5 + fract(time * 24.) * 41.) - .5;
-      o += (g * .6 + g2 * .4) * mix(.09, .045, l);
+      o += (g * .6 + g2 * .4) * mix(.05, .025, l);
       gl_FragColor = vec4(o, 1.);
     }`,
   depthTest: false, depthWrite: false,
@@ -607,7 +609,7 @@ const audio = (() => {
 function frame_(now) {
   const t = (now - t0) / 1000 + timeOffset;
   updateCamera(t);
-  film.uniforms.exposure.value = SCENES[current].exposure;
+  film.uniforms.exposure.value = SCENES[current].exposure; film.uniforms.sat.value = SCENES[current].sat;
   film.uniforms.time.value = now / 1000;
   const wf = Math.floor(now / 1000 * 24);  // gate weave, one step per film frame
   film.uniforms.weave.value.set(Math.sin(wf * 1.7) * .0004, Math.sin(wf * 2.3) * .0006);
