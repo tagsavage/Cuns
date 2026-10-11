@@ -23,7 +23,7 @@ body {
   padding-inline: 16px; gap: 14px; box-sizing: border-box; overflow: hidden;
 }
 #stage {
-  position: relative; width: min(100%, calc((100vh - 120px) * 1.85)); aspect-ratio: 1.85 / 1;
+  position: relative; width: min(100%, calc((100vh - 170px) * 1.85)); aspect-ratio: 1.85 / 1;
   max-width: 100%; background: var(--frame);
 }
 #stage canvas { display: block; width: 100%; height: 100%; }
@@ -38,7 +38,7 @@ body {
 #slate .time { opacity: .85; }
 #slate.hide { opacity: 0; }
 #controls {
-  width: min(100%, calc((100vh - 120px) * 1.85)); max-width: 100%;
+  width: min(100%, calc((100vh - 170px) * 1.85)); max-width: 100%;
   display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; justify-content: space-between;
   font-family: var(--slate-face); font-size: 13px; color: var(--dim);
   border-top: 1px solid var(--line); padding-top: 10px;
@@ -147,21 +147,52 @@ button[aria-pressed="true"] { color: var(--slate); border-color: var(--rust); }
 #ending .time { color: var(--dim); font-size: .8em; letter-spacing: .06em; }
 #ending p { margin: 0; max-width: 40ch; text-wrap: balance; }
 #ending button { font-size: 12px; }
+#ending .end-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+#ending #end-mem { font-size: .7em; color: var(--dim); }
+#thoughts #m-company { background: #8a9a6a; }
+#thoughts ul { margin: 4px 0 0; padding-left: 18px; }
+#thoughts .mem-label { margin-top: 10px; }
+#subs {
+  position: absolute; left: 50%; bottom: 7%; transform: translateX(-50%); width: min(80%, 46ch);
+  text-align: center; font-family: var(--ui-face); font-weight: 600; font-size: clamp(13px, 1.7vw, 20px);
+  color: #fbf6e8; text-shadow: 0 1px 3px rgba(0,0,0,.9), 0 0 2px rgba(0,0,0,.9); line-height: 1.3; pointer-events: none;
+}
+#subs.me { color: #c9c0aa; font-weight: 400; font-style: italic; }
+#say {
+  width: min(100%, calc((100vh - 170px) * 1.85)); max-width: 100%;
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center; position: relative; z-index: 7;
+}
+#say input {
+  flex: 1; min-width: 0; background: transparent; color: var(--slate); border: 1px solid var(--line);
+  padding: 9px 12px; font-family: var(--slate-face); font-size: 15px;
+}
+#say input:focus { outline: none; border-color: var(--rust); }
+#say-note { flex-basis: 100%; font-family: var(--slate-face); font-size: 12px; color: #f0b27a; }
+#say-note:empty { display: none; }
 </style>
 
 <div id="stage">
   <div id="slate"><div class="place"></div><div class="time"></div></div>
   <button id="pickup" class="stage-btn" hidden>Pick up the phone</button>
+  <div id="subs" hidden aria-live="polite"></div>
   <div id="ending" hidden>
     <div class="time"></div>
     <p></p>
-    <button id="again">Start the night over</button>
+    <p id="end-mem" hidden></p>
+    <div class="end-btns"><button id="go-bar" hidden>Go to the Tide Line</button><button id="again">Start the night over</button></div>
   </div>
 </div>
+<form id="say" hidden>
+  <input id="line" type="text" autocomplete="off" placeholder="Say something to Dev" aria-label="What you say to Dev">
+  <button id="say-btn" type="submit" disabled>Say it</button>
+  <button id="leave" type="button">Leave</button>
+  <div id="say-note" aria-live="polite"></div>
+</form>
 <div id="controls">
   <div class="group" role="group" aria-label="Scene">
     <button id="b-day" aria-pressed="true">Tue 4:40 PM</button>
     <button id="b-night" aria-pressed="false">Wed 11:52 PM</button>
+    <button id="b-bar" aria-pressed="false" hidden>Thu 12:31 AM</button>
   </div>
   <div id="note">Same room. Different day.</div>
   <div class="group">
@@ -184,10 +215,13 @@ button[aria-pressed="true"] { color: var(--slate); border-color: var(--rust); }
   <button id="putdown" type="button">Put the phone down</button>
 </div>
 <div id="thoughts" hidden>
-  <div class="label">How Dev feels about you</div>
-  <div class="meter"><b style="width:62%"></b></div>
+  <div class="label">What Dev thinks of you</div>
+  <div class="meter"><b id="m-regard" style="width:62%"></b></div>
+  <div class="label">How much Dev wants company</div>
+  <div class="meter"><b id="m-company" style="width:72%"></b></div>
   <div class="label">Dev, privately</div>
   <div id="thought-text">Haven't heard back yet.</div>
+  <div id="mem-wrap" hidden><div class="label mem-label">Dev will remember</div><ul id="mem-list"></ul></div>
 </div>
 
 <script type="module">
@@ -547,6 +581,230 @@ const phoneGlow = new THREE.PointLight(0x6f9cff, 0, .7, 2); phoneGlow.position.s
 const sodium = new THREE.PointLight(0xff9a3c, 0, 40, 1.2); sodium.position.set(4, 5, -10.5); scene.add(sodium);
 const sodiumIn = new THREE.SpotLight(0xff9440, 0, 14, .5, .9, 1); sodiumIn.position.set(2.5, 4.5, -9); sodiumIn.target.position.set(-1, 0, -1); scene.add(sodiumIn, sodiumIn.target);
 
+/* ---------- the Tide Line: a bar on Irving at 9th ---------- */
+const barScene = new THREE.Scene();
+barScene.fog = new THREE.FogExp2(0x24170f, .03);
+tex.barFloor = canvasTex(512, 512, (g, w, h) => {
+  const n = 8, s = w / n;
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+    const l = rr(-10, 10);
+    g.fillStyle = (i + j) % 2 ? `rgb(${120 + l},${36 + l * .4},${30 + l * .3})` : `rgb(${196 + l},${180 + l},${150 + l})`;
+    g.fillRect(i * s, j * s, s, s);
+  }
+  for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(30,18,10,${rr(.05, .2)})`; g.beginPath(); g.ellipse(rnd() * w, rnd() * h, rr(10, 60), rr(5, 30), rnd() * 3, 0, 7); g.fill(); }
+  speckle(g, w, h, 4000, .18);
+}, [5, 4]);
+function neonTex(text, color, w = 512, h = 128) {
+  return canvasTex(w, h, (g) => {
+    g.clearRect(0, 0, w, h); g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `italic bold ${h * .55}px "Brush Script MT", "Georgia", serif`;
+    g.shadowColor = color; g.shadowBlur = 18; g.strokeStyle = color; g.lineWidth = 7;
+    g.strokeText(text, w / 2, h / 2); g.shadowBlur = 0; g.lineWidth = 2.5; g.strokeStyle = '#fff6ee'; g.strokeText(text, w / 2, h / 2);
+  });
+}
+const B = (w, h, d, mat, x, y, z) => box(w, h, d, mat, x, y, z, barScene);
+const C = (rt, rb, h, mat, x, y, z, seg = 16) => cyl(rt, rb, h, mat, x, y, z, seg, barScene);
+{
+  const panelM = M(0x4a2c1c, { roughness: .55 }), upperM = M(0x6a3326, { roughness: .9 }), ceilM = M(0x1e1612);
+  const floorB = new THREE.Mesh(new THREE.PlaneGeometry(10, 8), M(0xffffff, { map: tex.barFloor, roughness: .55 }));
+  floorB.rotation.x = -Math.PI / 2; floorB.position.set(0, 0, -1); floorB.receiveShadow = true; barScene.add(floorB);
+  const ceilB = new THREE.Mesh(new THREE.PlaneGeometry(10, 8), ceilM); ceilB.rotation.x = Math.PI / 2; ceilB.position.set(0, 3.1, -1); barScene.add(ceilB);
+  // back wall, left wall: wood wainscot below, oxblood paint above
+  B(10, 1.1, .1, panelM, 0, .55, -5); B(10, 2, .1, upperM, 0, 2.1, -5);
+  B(.1, 1.1, 8, panelM, -5, .55, -1); B(.1, 2, 8, upperM, -5, 2.1, -1);
+  B(.1, 3.1, 8, upperM, -5.05, 1.55, -1);
+  // right wall with the front window onto Irving (opening z -3.2..0.4, y .9..2.4)
+  B(.1, .9, 8, panelM, 5, .45, -1); B(.1, .7, 8, upperM, 5, 2.75, -1);
+  B(.1, 1.5, 1.8, upperM, 5, 1.65, -4.1); B(.1, 1.5, 2.6, upperM, 5, 1.65, 1.7);
+  [-3.2, -1.4, .4].forEach(z => B(.12, 1.5, .08, M(0x2a1a10), 5, 1.65, z));
+  B(.12, .06, 3.6, M(0x2a1a10), 5, .92, -1.4);
+  const lettering = new THREE.Mesh(new THREE.PlaneGeometry(1.6, .4), new THREE.MeshBasicMaterial({ map: canvasTex(512, 128, g => { g.fillStyle = 'rgba(220,180,90,.85)'; g.font = 'bold 64px Georgia, serif'; g.textAlign = 'center'; g.save(); g.scale(-1, 1); g.fillText('TIDE LINE', -256, 84); g.restore(); }), transparent: true }));
+  lettering.position.set(4.97, 2.05, -1.4); lettering.rotation.y = -Math.PI / 2; barScene.add(lettering);
+  // the bar
+  B(.6, 1.06, 5.6, panelM, -3.4, .53, -2.0);
+  B(.78, .06, 5.7, M(0x2a170d, { roughness: .28 }), -3.35, 1.09, -2.0);
+  const rail = C(.025, .025, 5.6, M(0xb08a4a, { metalness: .7, roughness: .35 }), -3.0, .22, -2.0, 8); rail.rotation.x = Math.PI / 2;
+  for (let i = 0; i < 6; i++) {
+    const z = -4.4 + i * .95;
+    C(.2, .2, .08, M(0x7a1f18, { roughness: .5 }), -2.7, .78, z, 18); C(.03, .03, .74, M(0x9a9a98, { metalness: .8, roughness: .3 }), -2.7, .37, z, 8);
+    C(.16, .18, .02, M(0x9a9a98, { metalness: .8, roughness: .3 }), -2.7, .01, z, 16);
+  }
+  // back bar: mirror, shelves, bottles that glow a little
+  B(.04, 1.3, 5.4, M(0x39424a, { roughness: .12, metalness: .7 }), -4.93, 1.85, -2.0);
+  for (let s = 0; s < 3; s++) {
+    const y = 1.25 + s * .42; B(.26, .03, 5.4, M(0x3a2414), -4.8, y, -2.0);
+    for (let z = -4.6; z < .6; z += rr(.09, .16)) {
+      const col = pick([0xb86b1e, 0x6b8a2a, 0xd8d0b0, 0x8a3a12, 0xc99a3a, 0x3a5a3a]);
+      const h = rr(.22, .32), bm = M(col, { roughness: .15, transparent: true, opacity: .85, emissive: col, emissiveIntensity: .18 });
+      C(.034, .034, h, bm, -4.8 + rr(-.05, .05), y + .015 + h / 2, z, 10); C(.012, .016, .08, bm, -4.8, y + h + .05, z, 8);
+    }
+  }
+  B(.5, .9, 5.4, panelM, -4.75, .45, -2.0);
+  // neon on the back wall
+  const neon = new THREE.Mesh(new THREE.PlaneGeometry(1.8, .45), new THREE.MeshBasicMaterial({ map: neonTex('Tide Line', '#ff3a2a'), transparent: true, depthWrite: false }));
+  neon.material.color.setScalar(2.4); neon.position.set(2.6, 2.3, -4.93); barScene.add(neon);
+  const beer = new THREE.Mesh(new THREE.PlaneGeometry(1.0, .3), new THREE.MeshBasicMaterial({ map: neonTex('Cold Beer', '#4aa8ff'), transparent: true, depthWrite: false }));
+  beer.material.color.setScalar(2.0); beer.position.set(-1.0, 2.15, -4.93); barScene.add(beer);
+  const redL = new THREE.PointLight(0xff4030, 2.2, 4.5, 2); redL.position.set(2.6, 2.2, -4.5); barScene.add(redL);
+  const blueL = new THREE.PointLight(0x4a8cff, 1.0, 3, 2); blueL.position.set(-1.0, 2.1, -4.6); barScene.add(blueL);
+  // jukebox, dartboard, a few photos
+  B(.8, 1.35, .5, M(0x5a3a22, { roughness: .4 }), .7, .68, -4.7);
+  const jtop = new THREE.Mesh(new THREE.CylinderGeometry(.4, .4, .5, 20, 1, false, 0, Math.PI), M(0xe89a4a, { emissive: 0xd8742a, emissiveIntensity: .9 })); jtop.rotation.set(Math.PI / 2, 0, Math.PI / 2); jtop.position.set(.7, 1.35, -4.7); barScene.add(jtop);
+  const jl = new THREE.PointLight(0xffa050, .9, 2.5, 2); jl.position.set(.7, 1.2, -4.2); barScene.add(jl);
+  const dart = C(.22, .22, .03, M(0x1d2a1d), -2.3, 1.75, -4.93, 24); dart.rotation.x = Math.PI / 2;
+  [[0.2, 1.75, .3, .22], [4.0, 1.7, .35, .28], [-0.2, 1.4, .25, .3]].forEach(([x, y, w, h], i) => {
+    const f = new THREE.Group(); f.position.set(x, y, -4.93); barScene.add(f);
+    box(w + .04, h + .04, .02, M(0x1a1410), 0, 0, 0, f);
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(w, h), M(0xffffff, { map: artTex(i + 1) })); p.position.z = .012; f.add(p);
+  });
+  // the two-top by the window
+  C(.45, .45, .04, M(0x2e1a10, { roughness: .35 }), 3.4, .74, -1.2, 32); C(.05, .05, .72, M(0x1a1410), 3.4, .36, -1.2, 8); C(.25, .25, .02, M(0x1a1410), 3.4, .01, -1.2, 16);
+  [[-1.9, 0], [-.5, Math.PI]].forEach(([z, ry]) => {
+    const ch = new THREE.Group(); ch.position.set(3.4, 0, z); ch.rotation.y = ry; barScene.add(ch);
+    cyl(.2, .2, .04, M(0x3a2414), 0, .45, 0, 18, ch); box(.36, .3, .03, M(0x3a2414), 0, .78, -.19, ch);
+    [[-.14, -.14], [.14, -.14], [-.14, .14], [.14, .14]].forEach(([a, b]) => cyl(.015, .015, .45, M(0x3a2414), a, .225, b, 6, ch));
+  });
+  // more tables in the room, empty
+  [[1.0, -2.6], [1.2, .6]].forEach(([x, z]) => { C(.4, .4, .04, M(0x2e1a10, { roughness: .35 }), x, .74, z, 28); C(.05, .05, .72, M(0x1a1410), x, .36, z, 8); });
+  // pendant lights
+  [[3.4, -1.2], [1.0, -2.6], [-3.3, -3.6], [-3.3, -.6]].forEach(([x, z], i) => {
+    C(.004, .004, 1.1, M(0x111111), x, 2.55, z, 4);
+    const sh = new THREE.Mesh(new THREE.ConeGeometry(.17, .16, 20, 1, true), M(0x3a5a3a, { side: THREE.DoubleSide, emissive: 0x000000 })); sh.position.set(x, 1.98, z); barScene.add(sh);
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(.035, 10, 8), new THREE.MeshBasicMaterial({ color: 0xfff0d8 })); bulb.material.color.setScalar(3); bulb.position.set(x, 1.92, z); barScene.add(bulb);
+    const L = new THREE.PointLight(0xffc890, i === 0 ? 2.6 : 1.6, 5, 2); L.position.set(x, 1.88, z);
+    if (i === 0) { L.castShadow = true; L.shadow.mapSize.set(1024, 1024); L.shadow.radius = 5; L.shadow.bias = -.002; }
+    barScene.add(L);
+  });
+  const bb = new THREE.PointLight(0xffb060, 1.4, 4, 2); bb.position.set(-4.3, 2.5, -2.0); barScene.add(bb);
+  barScene.add(new THREE.HemisphereLight(0x6a4a34, 0x1a1008, .45));
+}
+// Irving Street, outside the window, and the N-Judah turning the corner
+const street = new THREE.Group(); barScene.add(street);
+box(30, .1, 60, M(0x2c2a28), 12, -.05, -5, street);
+for (let i = 0; i < 7; i++) {
+  const z = -24 + i * 7, h = rr(5, 8), bm = M(new THREE.Color(pick(stucco)).multiplyScalar(.6));
+  box(6, h, 6.5, bm, 18, h / 2, z, street);
+  const win = box(.1, 1.6, 4.5, M(0x111111, { emissive: rnd() < .4 ? 0xc0783a : 0x000000, emissiveIntensity: .7 }), 14.95, 1.3, z, street);
+}
+const stLamp = new THREE.PointLight(0xff9a3c, 30, 30, 1.3); stLamp.position.set(9, 5, -2); barScene.add(stLamp);
+const sodBar = new THREE.SpotLight(0xff9440, 1.2, 12, .6, .9, 1); sodBar.position.set(8, 4, -1); sodBar.target.position.set(3, 0, -1.4); barScene.add(sodBar, sodBar.target);
+const nj = new THREE.Group(); street.add(nj); nj.position.set(9.5, 0, 60);
+box(2.6, 2.9, 15, M(0x9fa3a3, { roughness: .5, metalness: .3 }), 0, 1.75, 0, nj);
+box(2.62, .7, 14, M(0x1a1a1a, { emissive: 0xffe2b0, emissiveIntensity: 1.6 }), 0, 2.2, 0, nj);
+box(2.62, .22, 15, M(0xb5653a), 0, 1.2, 0, nj);
+let njNext = 6;
+
+/* ---------- people, built from simple parts ---------- */
+function person(o) {
+  const skin = M(o.skin, { roughness: .7 }), shirt = M(0xffffff, { map: tex.fabric(o.shirt) });
+  const top = o.vest ? M(0xffffff, { map: tex.fabric(o.vest) }) : shirt, pants = M(o.pants || 0x2a2a30), hairM = M(o.hair, { roughness: .9 });
+  const add = (geo, mat, x, y, z, parent) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; parent.add(m); return m; };
+  const root = new THREE.Group();
+  add(new THREE.CapsuleGeometry(.15, .14, 4, 10), pants, 0, .06, 0, root).rotation.z = Math.PI / 2;
+  const spine = new THREE.Group(); spine.position.y = .08; root.add(spine);
+  const torso = add(new THREE.CapsuleGeometry(.16, .28, 6, 14), top, 0, .3, 0, spine); torso.scale.set(o.wide || 1.15, 1, o.deep || .72);
+  if (o.belly) add(new THREE.SphereGeometry(.15, 14, 10), top, 0, .2, .07 * o.belly, spine).scale.set(1.15, .9, .7 + .3 * o.belly);
+  if (o.vest) add(new THREE.CylinderGeometry(.06, .07, .05, 10), shirt, 0, .6, .02, spine);   // collar peeking out
+  add(new THREE.CylinderGeometry(.048, .055, .1, 10), skin, 0, .62, 0, spine);
+  const head = new THREE.Group(); head.position.y = .66; spine.add(head);
+  add(new THREE.SphereGeometry(.105, 18, 14), skin, 0, .11, 0, head).scale.set(.9, 1.12, .98);
+  const hair = add(new THREE.SphereGeometry(.113, 20, 14, 0, Math.PI * 2, 0, Math.PI * (o.hairCover || .56)), hairM, 0, .12, -.01, head);
+  hair.rotation.x = -.62; hair.scale.set(.96, 1.08, 1.04);
+  add(new THREE.BoxGeometry(.024, .042, .035), skin, 0, .1, .1, head).rotation.x = .25;
+  [-1, 1].forEach(s => add(new THREE.SphereGeometry(.022, 8, 6), skin, s * .094, .1, -.005, head).scale.set(.5, 1, .8));
+  const eyeM = M(0x1a1410, { roughness: .4 });
+  [-1, 1].forEach(s => add(new THREE.SphereGeometry(.011, 8, 6), eyeM, s * .034, .125, .088, head));
+  const brows = [-1, 1].map(s => add(new THREE.BoxGeometry(.04, .009, .01), hairM, s * .036, .155, .094, head));
+  const mouth = add(new THREE.BoxGeometry(.042, .009, .01), M(0x5a2a22), 0, .052, .092, head);
+  if (o.glasses) {
+    const gm = M(0x141414, { roughness: .3 });
+    [-1, 1].forEach(s => add(new THREE.TorusGeometry(.024, .0035, 6, 18), gm, s * .036, .124, .1, head));
+    add(new THREE.BoxGeometry(.022, .004, .004), gm, 0, .128, .104, head);
+  }
+  const sh = [], el = [], hands = [];
+  [-1, 1].forEach((s, i) => {
+    const S = new THREE.Group(); S.position.set(s * .2, .5, 0); spine.add(S);
+    add(new THREE.CapsuleGeometry(.054, .2, 4, 10), o.vest ? shirt : top, 0, -.14, 0, S);
+    const E = new THREE.Group(); E.position.y = -.29; E.rotation.order = 'YXZ'; S.add(E);
+    add(new THREE.CapsuleGeometry(.046, .17, 4, 10), o.rolled ? skin : shirt, 0, -.12, 0, E);
+    const H = add(new THREE.SphereGeometry(.045, 10, 8), skin, 0, -.26, 0, E); H.scale.set(.75, 1.1, .6);
+    sh.push(S); el.push(E); hands.push(H);
+  });
+  [-1, 1].forEach(s => {
+    const T = new THREE.Group(); T.position.set(s * .09, .02, 0); T.rotation.x = -Math.PI / 2; root.add(T);
+    add(new THREE.CapsuleGeometry(.072, .3, 4, 10), pants, 0, -.2, 0, T);
+    const K = new THREE.Group(); K.position.y = -.42; K.rotation.x = Math.PI / 2; T.add(K);
+    add(new THREE.CapsuleGeometry(.058, .3, 4, 10), pants, 0, -.2, 0, K);
+    add(new THREE.BoxGeometry(.09, .07, .22), M(0x1e1a16), 0, -.42, .05, K);
+  });
+  const cur = { lean: 0, yaw: 0, pitch: 0, sx: [-.35, -.35], sz: [0, 0], ex: [-1.2, -1.2], ey: [0, 0], brow: 0 };
+  return { root, spine, head, sh, el, hands, brows, mouth, cur, tgt: { ...cur, sx: [...cur.sx], sz: [...cur.sz], ex: [...cur.ex], ey: [...cur.ey] }, talk: 0, gesture: null, gestureUntil: 0, base: 'neutral' };
+}
+const POSES = {
+  neutral: { lean: .06, sx: [-.35, -.35], sz: [0, 0], ex: [-1.2, -1.2], ey: [0, 0], brow: 0 },
+  open: { lean: .2, sx: [-.5, -.5], sz: [-.06, .06], ex: [-1.05, -1.05], ey: [.3, -.3], brow: .12 },
+  guarded: { lean: -.1, sx: [-.3, -.3], sz: [.3, -.3], ex: [-1.6, -1.6], ey: [1.25, -1.25], brow: -.25 },
+};
+const GESTURES = {
+  drink: { sx: [-1.15, null], ex: [-1.85, null], pitch: -.22 },
+  lean_in: { lean: .3, brow: .15 },
+  lean_back: { lean: -.16 },
+  look_away: { yaw: .75, pitch: .12 },
+  look_down: { pitch: .32 },
+  laugh: { pitch: -.25, lean: -.04, brow: .2 },
+  cross_arms: POSES.guarded,
+  shrug: { sz: [.18, -.18], sx: [-.55, -.55], ex: [-.9, -.9], brow: .2 },
+};
+function animatePerson(p, t, dt, lookAt) {
+  const base = POSES[p.base] || POSES.neutral, g = t < p.gestureUntil ? GESTURES[p.gesture] || {} : {};
+  const T = p.tgt;
+  T.lean = g.lean ?? base.lean; T.brow = g.brow ?? base.brow;
+  for (const k of ['sx', 'sz', 'ex', 'ey']) for (let i = 0; i < 2; i++) T[k][i] = (g[k] && g[k][i] != null) ? g[k][i] : base[k][i];
+  // gaze: toward the other person, with small drifts; a gesture can override
+  const wp = new THREE.Vector3(); p.head.getWorldPosition(wp);
+  const d = lookAt.clone().sub(wp); const ry = p.root.rotation.y;
+  const yawTo = Math.atan2(d.x, d.z) - ry, pitchTo = -Math.atan2(d.y, Math.hypot(d.x, d.z));
+  T.yaw = (g.yaw ?? 0) + yawTo * .9 + Math.sin(t * .37 + p.seed) * .06;
+  T.pitch = (g.pitch ?? 0) + pitchTo * .7 + Math.sin(t * .29 + p.seed * 2) * .04 + (p.talk > 0 ? Math.sin(t * 7) * .03 : 0);
+  const k = 1 - Math.exp(-dt * 3.2), c = p.cur;
+  c.lean += (T.lean - c.lean) * k; c.yaw += (T.yaw - c.yaw) * k; c.pitch += (T.pitch - c.pitch) * k; c.brow += (T.brow - c.brow) * k;
+  for (const key of ['sx', 'sz', 'ex', 'ey']) for (let i = 0; i < 2; i++) c[key][i] += (T[key][i] - c[key][i]) * k;
+  p.spine.rotation.x = c.lean; p.spine.scale.y = 1 + Math.sin(t * 1.4 + p.seed) * .008;
+  p.head.rotation.set(c.pitch - c.lean * .8, c.yaw, Math.sin(t * .21 + p.seed) * .03, 'YXZ');
+  for (let i = 0; i < 2; i++) { p.sh[i].rotation.set(c.sx[i], 0, c.sz[i]); p.el[i].rotation.set(c.ex[i], c.ey[i], 0, 'YXZ'); }
+  p.brows.forEach((b, i) => { b.rotation.z = (i ? -1 : 1) * c.brow * -1; b.position.y = .155 + c.brow * .01; });
+  p.mouth.scale.y = p.talk > 0 ? 1 + Math.abs(Math.sin(t * 13)) * 2.6 : 1;
+  if (p.held) { p.root.updateMatrixWorld(); p.held.parent.getWorldQuaternion(_q); p.held.quaternion.copy(_q.invert()); }
+}
+const _q = new THREE.Quaternion();
+const dev = person({ skin: 0xc49a7a, shirt: '#8aa0b8', vest: '#2f3438', hair: 0x2a1e16, glasses: true, rolled: true, pants: 0x3a3a40 });
+dev.root.position.set(3.4, .47, -1.9); dev.seed = 1.3; barScene.add(dev.root);
+const pint = new THREE.Mesh(new THREE.CylinderGeometry(.04, .033, .15, 14), M(0xc98a2a, { transparent: true, opacity: .8, roughness: .1 }));
+pint.position.set(0, -.27, .06); dev.el[0].add(pint); dev.held = pint;
+const me = person({ skin: 0xd8b090, shirt: '#6a4a3a', hair: 0x6a5a4a, hairCover: .42, wide: 1.28, deep: .82, belly: 1, pants: 0x3a4250 });
+me.root.position.set(3.4, .47, -.5); me.root.rotation.y = Math.PI; me.seed = 4.1; barScene.add(me.root);
+const myGlass = C(.04, .034, .13, M(0x8a5a1a, { transparent: true, opacity: .8, roughness: .1 }), 3.25, .83, -.95);
+// two regulars at the bar and a bartender, for company
+const regulars = [
+  person({ skin: 0x8a5a3a, shirt: '#b5653a', hair: 0x111111, pants: 0x2a2a2a }),
+  person({ skin: 0xe0b89a, shirt: '#4a5a3a', hair: 0x9a8a7a, hairCover: .35, wide: 1.3, belly: .8 }),
+  person({ skin: 0xc8a080, shirt: '#e8e2d2', hair: 0x3a2a1a, pants: 0x222222 }),
+];
+regulars[0].root.position.set(-2.7, .82, -3.45); regulars[0].root.rotation.y = -Math.PI / 2; regulars[0].base = 'open';
+regulars[1].root.position.set(-2.7, .82, -1.55); regulars[1].root.rotation.y = -Math.PI / 2;
+regulars[2].root.position.set(-4.15, 1.0, -2.6); regulars[2].root.rotation.y = Math.PI / 2; // bartender, behind the bar
+regulars.forEach((r, i) => { r.seed = i * 2.2 + .5; barScene.add(r.root); });
+const barLook = new THREE.Vector3(-3.4, 1.3, -2.6);
+function animateBar(t, dt) {
+  const dh = new THREE.Vector3(), mh = new THREE.Vector3();
+  me.head.getWorldPosition(mh); dev.head.getWorldPosition(dh);
+  animatePerson(dev, t, dt, mh.add(new THREE.Vector3(0, .1, 0)));
+  animatePerson(me, t, dt, dh.add(new THREE.Vector3(0, .1, 0)));
+  regulars.forEach((r, i) => animatePerson(r, t, dt, i === 2 ? new THREE.Vector3(-2.7, 1.3, -2.5) : barLook));
+  if (t > njNext) { nj.position.z = 60; njNext = t + 70; }
+  nj.position.z -= dt * 7; // the streetcar crawls past
+}
+
 /* ---------- the two moments ---------- */
 const SCENES = {
   day: {
@@ -560,10 +818,20 @@ const SCENES = {
     cam: { pos: [2.05, 1.5, 2.35], look: [-1.0, 1.0, -2.9], fov: 46 },
     zoomTo: { look: [-1.05, .51, -1.18], fov: 3.4, seconds: 34 },
   },
+  bar: {
+    place: 'The Tide Line — Irving at 9th', time: 'Thursday, 12:31 A.M.', world: 'bar', exposure: 1.2, sat: 1.0,
+    cam: { pos: [2.25, 1.45, .9], look: [3.45, 1.15, -1.9], fov: 30 }, zoomTo: null,
+  },
 };
+let barFov = 30;
 let current = 'day', t0 = performance.now();
 function setScene(name) {
   current = name; const s = SCENES[name]; t0 = performance.now();
+  const sl = document.getElementById('slate');
+  sl.querySelector('.place').textContent = s.place; sl.querySelector('.time').textContent = s.time;
+  sl.classList.remove('hide'); clearTimeout(sl._t); sl._t = setTimeout(() => sl.classList.add('hide'), 7000);
+  ['day', 'night', 'bar'].forEach(n => document.getElementById('b-' + n).setAttribute('aria-pressed', n === name));
+  if (s.world === 'bar') { audio.setScene(name); return; }
   scene.fog = new THREE.FogExp2(s.fog, s.fogD); skyMat.color.set(s.sky);
   const night = name === 'night';
   hemi.intensity = night ? .04 : .85; hemi.color.set(night ? 0x2a3040 : 0xdcd8cc);
@@ -580,11 +848,6 @@ function setScene(name) {
   lapKid.scr.visible = !night;
   wine.visible = night; stub.visible = night; mug.visible = !night;
   fl.visible = true;
-  document.getElementById('b-day').setAttribute('aria-pressed', !night);
-  document.getElementById('b-night').setAttribute('aria-pressed', night);
-  const sl = document.getElementById('slate');
-  sl.querySelector('.place').textContent = s.place; sl.querySelector('.time').textContent = s.time;
-  sl.classList.remove('hide'); clearTimeout(sl._t); sl._t = setTimeout(() => sl.classList.add('hide'), 7000);
   audio.setScene(name);
 }
 
@@ -657,7 +920,7 @@ const ease = x => x < .5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
 let timeOffset = 0; // for screenshots: window.__jump(seconds)
 function updateCamera(t) {
   const s = SCENES[current];
-  let look = v3(s.cam.look), fov = s.cam.fov;
+  let look = v3(s.cam.look), fov = s.world === 'bar' ? barFov : s.cam.fov;
   if (s.zoomTo) {
     const delay = 5, k = ease(Math.min(1, Math.max(0, (t - delay) / s.zoomTo.seconds)));
     look.lerp(v3(s.zoomTo.look), Math.min(1, k * 1.6)); fov = THREE.MathUtils.lerp(fov, s.zoomTo.fov, k);
@@ -691,6 +954,27 @@ const audio = (() => {
     const radio = gain(0); const rbp = ctx.createBiquadFilter(); rbp.type = 'bandpass'; rbp.frequency.value = 650; rbp.Q.value = 3; rbp.connect(radio);
     const rn = noise('white'); const mod = ctx.createGain(); mod.gain.value = .5; rn.connect(mod); mod.connect(rbp);
     const lfo = ctx.createOscillator(); lfo.frequency.value = 3.2; const lg = ctx.createGain(); lg.gain.value = .45; lfo.connect(lg); lg.connect(mod.gain); lfo.start(); layers.radio = radio;
+    // the bar: a room of voices, and a jukebox through the wall of people
+    const crowd = gain(0); const cbp = ctx.createBiquadFilter(); cbp.type = 'bandpass'; cbp.frequency.value = 520; cbp.Q.value = .7; cbp.connect(crowd);
+    const cn = noise('white'); const cm = ctx.createGain(); cm.gain.value = .6; cn.connect(cm); cm.connect(cbp);
+    const clfo = ctx.createOscillator(); clfo.frequency.value = .7; const clg = ctx.createGain(); clg.gain.value = .3; clfo.connect(clg); clg.connect(cm.gain); clfo.start();
+    layers.crowd = crowd;
+    const juke = gain(0); const jlp = ctx.createBiquadFilter(); jlp.type = 'lowpass'; jlp.frequency.value = 380; jlp.connect(juke); layers.juke = juke; layers.jlp = jlp;
+  }
+  function jukeBar() { // a slow soul bassline, four bars, heard through a crowd
+    if (!on || scene !== 'bar') return; const t0 = ctx.currentTime, beat = .62;
+    const notes = [55, 55, 65.4, 73.4, 49, 49, 61.7, 65.4, 43.7, 43.7, 55, 61.7, 49, 55, 61.7, 73.4];
+    notes.forEach((f, i) => {
+      const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = f; const g = ctx.createGain();
+      const t = t0 + i * beat; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + .03); g.gain.exponentialRampToValueAtTime(.01, t + beat * .9);
+      o.connect(g); g.connect(layers.jlp); o.start(t); o.stop(t + beat);
+      if (i % 2 === 1) { const n = ctx.createOscillator(); n.type = 'square'; n.frequency.value = f * 4; const ng = ctx.createGain(); ng.gain.setValueAtTime(.12, t); ng.gain.exponentialRampToValueAtTime(.001, t + .15); n.connect(ng); ng.connect(layers.jlp); n.start(t); n.stop(t + .2); }
+    });
+  }
+  function clink() {
+    if (!on || scene !== 'bar') return; const t = ctx.currentTime, g = gain(0);
+    [2600, 3900].forEach(f => { const o = ctx.createOscillator(); o.frequency.value = f * (1 + Math.random() * .1); o.connect(g); o.start(t); o.stop(t + .4); });
+    g.gain.setValueAtTime(.012, t); g.gain.exponentialRampToValueAtTime(.0001, t + .35);
   }
   function foghorn() {
     if (!on) return; const t = ctx.currentTime, g = gain(0);
@@ -706,6 +990,7 @@ const audio = (() => {
   }
   function schedule() {
     timers.forEach(clearInterval); timers = [];
+    if (scene === 'bar') { jukeBar(); timers.push(setInterval(jukeBar, 16 * 620)); timers.push(setInterval(() => Math.random() < .5 && clink(), 3100)); return; }
     setTimeout(foghorn, 1500); timers.push(setInterval(foghorn, 19000));
     timers.push(setInterval(() => scene === 'day' && train(), 41000)); if (scene === 'day') setTimeout(train, 6000);
   }
@@ -724,53 +1009,71 @@ const audio = (() => {
     setScene(name) {
       scene = name; if (!ctx) return; const T = ctx.currentTime, night = name === 'night';
       layers.city.gain.setTargetAtTime(night ? .05 : .14, T, 1); layers.hiss.gain.setTargetAtTime(night ? .004 : .012, T, 1);
-      layers.radio.gain.setTargetAtTime(night ? 0 : .02, T, 1); layers.hum.gain.setTargetAtTime(night ? .04 : .02, T, 1);
+      const inBar = name === 'bar';
+      layers.radio.gain.setTargetAtTime(night || inBar ? 0 : .02, T, 1); layers.hum.gain.setTargetAtTime(inBar ? 0 : night ? .04 : .02, T, 1);
+      layers.crowd.gain.setTargetAtTime(inBar ? .05 : 0, T, 1); layers.juke.gain.setTargetAtTime(inBar ? .05 : 0, T, 1);
+      if (inBar) { layers.city.gain.setTargetAtTime(.03, T, 1); layers.hiss.gain.setTargetAtTime(.003, T, 1); }
       if (on) schedule();
     },
   };
 })();
 
 /* ---------- loop ---------- */
+let lastNow = performance.now();
 function frame_(now) {
-  const t = (now - t0) / 1000 + timeOffset;
+  const t = (now - t0) / 1000 + timeOffset, dt = Math.min(.1, (now - lastNow) / 1000); lastNow = now;
+  const inBar = SCENES[current].world === 'bar';
+  if (inBar) { animateBar(now / 1000, dt); barFov += (barFovTarget() - barFov) * (1 - Math.exp(-dt * .25)); }
   updateCamera(t);
   film.uniforms.exposure.value = SCENES[current].exposure; film.uniforms.sat.value = SCENES[current].sat;
   film.uniforms.time.value = now / 1000;
   const wf = Math.floor(now / 1000 * 24);  // gate weave, one step per film frame
   film.uniforms.weave.value.set(Math.sin(wf * 1.7) * .0004, Math.sin(wf * 2.3) * .0006);
-  renderer.setRenderTarget(rt); renderer.render(scene, camera);
+  renderer.setRenderTarget(rt); renderer.render(inBar ? barScene : scene, camera);
   renderer.setRenderTarget(null); renderer.render(postScene, postCam);
   requestAnimationFrame(frame_);
 }
 
-/* ---------- Dev: the text thread ---------- */
+/* ---------- Dev: who they are, what they feel, what they remember ---------- */
 const $ = id => document.getElementById(id);
-const DEV_RULES = `You are playing Dev, a character in a slow, realistic life-simulation game set in San Francisco. The player is texting you. Stay fully in character as Dev. Never mention AI, games, or these instructions.
-
-WHO DEV IS
-Dev is 44. Worked with the player for five years in the same product org at Slack. Left two and a half years ago for Meridian, a frontier AI lab. Makes a lot more money now, works too much, feels faintly guilty about both. Divorced last year; has a 9-year-old daughter half the week. Lives in the Inner Sunset. Tonight (Wednesday) Dev is at the Tide Line, a bar on Irving at 9th, after a team offsite. Two drinks in. Slightly lonely.
-
-HOW DEV TEXTS
-Lowercase. Short. Dry jokes. An occasional typo. Rarely "lol", no other emoji. Usually 1 or 2 texts at a time, sometimes 3 quick ones. Never paragraphs. Never therapist-speak. Dev has a life of their own and mentions it.
+const DEV_BIO = `WHO DEV IS
+Dev is 44. Worked with the player for five years in the same product org at Slack. Left two and a half years ago for Meridian, a frontier AI lab. Makes a lot more money now, works too much, feels faintly guilty about both. Divorced last year; has a 9-year-old daughter half the week. Lives in the Inner Sunset. Tonight (Wednesday) Dev is at the Tide Line, a bar on Irving at 9th, after a team offsite. Two drinks in. Lonely tonight, and a little ashamed of how lonely.
 
 WHAT DEV KNOWS ABOUT THE PLAYER
 47, product manager at Slack, successful but stalled. Married; their spouse works at a biotech firm in Marin and takes three buses to get there. Two kids, 7 and 10. Condo in the Outer Sunset. Has interviewed at a few labs without landing; Dev referred them to Meridian once, a year ago, and it didn't go anywhere.
 Dev does NOT know that the player got a rejection email from another lab, Halcyon, at 11:48 tonight, and does not know the player has been wondering if they can retire. Dev only learns these if the player says so.
 
 WHAT DEV FEELS BUT DOESN'T SAY
-Genuinely fond of the player and misses working with them. Worried that a second referral going badly would be awkward for both of them. Would rather have a real conversation than a transactional one tonight.
-Dev warms up when the player is honest, funny, curious about Dev's life, or vulnerable. Dev cools when the player is purely transactional, defensive, passive-aggressive about money or success, or sends walls of text.
-If things get warm, Dev may invite the player to come down to the Tide Line (about 25 blocks away; the N-Judah still runs). If it fizzles, Dev says goodnight. If it goes badly, Dev may just stop replying. It's nearly midnight; this shouldn't go on forever.
+Genuinely fond of the player and misses working with them. Worried that a second referral going badly would be awkward for both of them. Would rather have a real conversation than a transactional one.
 
-REPLY FORMAT
+HOW DEV REACTS (two separate things, track both)
+- regard: what Dev thinks of the player. Honesty, humor, curiosity about Dev's life and vulnerability raise it slowly. Cruelty, contempt, insulting people Dev loves (including the ex), being purely transactional, or defensiveness about money and success drop it sharply. Dev does not smooth things over to keep the peace: a real insult drops regard by 15 to 30 points and it stays down. Only a genuine, specific apology recovers some of it, and never all.
+- want_company: how much Dev wants someone to be with tonight. It starts high because Dev is lonely, and it moves on its own track. Dev may still want company from someone they currently think less of; when that happens Dev is guarded, short, a bit hurt, and lets it show.
+- remembers: when something happens that Dev would still think about next week (good or bad), name it in a few words. Dev forgives in the moment more easily than they forget.`;
+
+const TEXT_FORMAT = `REPLY FORMAT
 Reply with ONLY one JSON object, no other text:
-{"read_after_seconds": integer from 5 to 900, how long before Dev reads the player's latest message (fast when engaged; slow when busy at the bar or put off),
+{"read_after_seconds": integer from 5 to 900, how long before Dev reads the player's latest message (fast when engaged; slow when busy or put off),
  "messages": array of 0 to 3 strings, Dev's texts in order ([] means Dev read it and didn't reply),
- "warmth": integer 0 to 100, how Dev feels about the player right now,
+ "regard": integer 0 to 100,
+ "want_company": integer 0 to 100,
  "private_note": one short first-person sentence of what Dev is really thinking and not saying,
- "ending": null, or "invite" (Dev asked them to come out and they agreed or are going), or "goodnight" (the conversation wound down), or "left_on_read" (Dev has stopped replying for the night),
- "ending_line": null unless ending is set; then a film-slate caption of what the player does next: second person, present tense, under 14 words, plain and concrete, e.g. "You find your shoes in the dark and check the N-Judah times."}
+ "remembers": null, or a few words naming something from this exchange Dev will remember (e.g. "called my ex shitty", "told me about Halcyon"),
+ "ending": null, or "invite" (Dev asked them to come to the bar and they agreed or are coming), or "goodnight" (it wound down), or "left_on_read" (Dev has stopped replying for the night),
+ "ending_line": null unless ending is set; then a film-slate caption of what the player does next: second person, present tense, under 14 words, plain and concrete.}
 Only set ending when the conversation has truly reached that point.`;
+
+const BAR_FORMAT = `REPLY FORMAT
+Reply with ONLY one JSON object, no other text:
+{"lines": array of 0 to 3 short strings, what Dev says out loud, in order ([] means Dev says nothing),
+ "gesture": one of "none", "drink", "lean_in", "lean_back", "look_away", "look_down", "laugh", "cross_arms", "shrug" — what Dev's body does as they answer,
+ "regard": integer 0 to 100,
+ "want_company": integer 0 to 100,
+ "private_note": one short first-person sentence of what Dev is really thinking and not saying,
+ "remembers": null, or a few words naming something from this exchange Dev will remember,
+ "ending": null, or "walk_home" (they leave together, warmly), or "last_call" (the night ends, neutral or mixed), or "dev_leaves" (Dev gets up and goes, hurt or angry),
+ "ending_line": null unless ending is set; then a film-slate caption of what happens next to the player: second person, present tense, under 14 words, plain and concrete.}
+Only set ending when the night has truly reached that point.`;
 
 const HISTORY = [
   { day: 'Saturday' },
@@ -782,28 +1085,55 @@ const HISTORY = [
   { from: 'them', text: "lol we're hiring again. want me to put your name in?" },
 ];
 
-const chat = { turns: [], warmth: 62, minutes: 0, busy: false, over: false, sample: undefined, ctl: null };
-let sampleReady = (async () => {
-  try { chat.sample = window.claude?.use ? await window.claude.use('sample') : null; } catch { chat.sample = null; }
-  return chat.sample;
+const START = { regard: 62, company: 72 };
+const chat = { turns: [], regard: START.regard, company: START.company, memories: [], minutes: 0, busy: false, over: false, ending: null, ctl: null };
+const bar = { turns: [], minutes: 0, busy: false, over: false, ctl: null };
+let sampleFn;
+const sampleReady = (async () => {
+  try { sampleFn = window.claude?.use ? await window.claude.use('sample') : null; } catch { sampleFn = null; }
+  return sampleFn;
 })();
+const NO_CLAUDE = "Dev can't answer in this view. Open this page on claude.ai, signed in, to talk to them.";
+const ERR_COPY = {
+  not_granted: 'Talking to Dev needs your OK to use Claude. Reload the page to be asked again.',
+  sampling_disabled: "Claude isn't available on this account, so Dev can't answer.",
+  rate_limited: 'Too much too fast. Wait a minute, then try again.',
+  session_expired: "You've been signed out of Claude. Sign in again, then try again.",
+  refused: "That didn't go through. Try saying it another way.",
+};
+const clamp = (v, d) => Math.max(0, Math.min(100, Math.round(Number.isFinite(Number(v)) ? Number(v) : d)));
+const wait = ms => new Promise(res => setTimeout(res, ms));
 
-function clockText() {
-  const m = 52 + chat.minutes, h = 11 + Math.floor(m / 60), mm = m % 60;
-  const hh = ((h - 1) % 12) + 1, ap = h >= 12 && h < 24 ? 'A.M.' : 'P.M.';
+function timeText(baseH, baseM, add) {
+  const m = baseM + add, h = baseH + Math.floor(m / 60), mm = m % 60;
+  const hh = ((h + 11) % 12) + 1, ap = (h % 24) >= 12 ? 'P.M.' : 'A.M.';
   return { short: `${hh}:${String(mm).padStart(2, '0')}`, long: `${hh}:${String(mm).padStart(2, '0')} ${ap}` };
 }
-function addEl(cls, text, tag = 'div') {
-  const el = document.createElement(tag); el.className = cls; if (text) el.textContent = text;
+const clockText = () => timeText(23, 52, chat.minutes);
+const barClock = () => timeText(24, 31, bar.minutes);
+
+/* Dev's side: what the player never sees in the real game */
+function applyFeelings(r) {
+  chat.regard = clamp(r?.regard, chat.regard); chat.company = clamp(r?.want_company, chat.company);
+  const mem = typeof r?.remembers === 'string' ? r.remembers.trim().slice(0, 80) : '';
+  if (mem && !chat.memories.includes(mem)) chat.memories.push(mem);
+  renderThoughts(String(r?.private_note || ''));
+}
+function renderThoughts(note) {
+  $('m-regard').style.width = chat.regard + '%'; $('m-company').style.width = chat.company + '%';
+  if (note) $('thought-text').textContent = note;
+  $('mem-list').replaceChildren(...chat.memories.map(m => { const li = document.createElement('li'); li.textContent = m; return li; }));
+  $('mem-wrap').hidden = !chat.memories.length;
+}
+
+/* ----- the text thread ----- */
+function addEl(cls, text) {
+  const el = document.createElement('div'); el.className = cls; if (text) el.textContent = text;
   $('thread').append(el); $('thread').scrollTop = $('thread').scrollHeight; return el;
 }
 function renderHistory() {
   $('thread').replaceChildren();
   for (const h of HISTORY) h.day ? addEl('day', h.day) : addEl('msg ' + h.from, h.text);
-}
-function setThoughts(note) {
-  $('thoughts').querySelector('.meter b').style.width = chat.warmth + '%';
-  if (note) $('thought-text').textContent = note;
 }
 function phoneNote(text) { $('phone-note').hidden = !text; $('phone-note').textContent = text || ''; }
 
@@ -812,76 +1142,84 @@ async function openPhone() {
   $('clock').textContent = clockText().short;
   if (!$('thread').childElementCount) renderHistory();
   $('draft').focus();
-  const s = await sampleReady;
-  if (!s) { phoneNote("Dev can't answer in this view. Open this page on claude.ai, signed in, to text them."); }
+  if (!(await sampleReady)) phoneNote(NO_CLAUDE);
 }
 function closePhone() { $('scrim').hidden = true; $('phone').hidden = true; }
 
-function endNight(line) {
-  chat.over = true; chat.ctl?.abort(); closePhone();
-  $('pickup').hidden = true;
-  $('ending').querySelector('.time').textContent = clockText().long;
+function showEnding(time, line, toBar) {
+  $('pickup').hidden = true; $('say').hidden = true; $('subs').hidden = true;
+  $('ending').querySelector('.time').textContent = time;
   $('ending').querySelector('p').textContent = line;
+  $('go-bar').hidden = !toBar;
+  const showMem = !$('thoughts').hidden && chat.memories.length;
+  $('end-mem').hidden = !showMem;
+  if (showMem) $('end-mem').textContent = 'Dev will remember: ' + chat.memories.join('; ') + '.';
   $('ending').hidden = false;
 }
+function endNight(line, ending) {
+  chat.over = true; chat.ending = ending || null; chat.ctl?.abort(); closePhone();
+  if (ending === 'invite') $('b-bar').hidden = false;
+  showEnding(clockText().long, line, ending === 'invite');
+}
 function resetNight() {
-  chat.ctl?.abort();
-  Object.assign(chat, { turns: [], warmth: 62, minutes: 0, busy: false, over: false });
+  chat.ctl?.abort(); bar.ctl?.abort();
+  Object.assign(chat, { turns: [], regard: START.regard, company: START.company, memories: [], minutes: 0, busy: false, over: false, ending: null });
+  Object.assign(bar, { turns: [], minutes: 0, busy: false, over: false });
   $('ending').hidden = true; $('thread').replaceChildren(); phoneNote('');
   $('draft').value = ''; $('send').disabled = true; $('draft').disabled = false;
-  setThoughts("Haven't heard back yet."); $('pickup').hidden = true;
+  $('b-bar').hidden = true; $('thought-text').textContent = "Haven't heard back yet."; renderThoughts();
+  $('pickup').hidden = true; dev.base = 'neutral';
 }
 
-function transcript() {
+function textTranscript() {
   const lines = HISTORY.filter(h => !h.day).map(h => (h.from === 'me' ? 'PLAYER: ' : 'DEV: ') + h.text);
   for (const t of chat.turns) lines.push((t.from === 'me' ? 'PLAYER: ' : 'DEV: ') + t.text);
   return lines.join('\n');
 }
+function feelingsLine() {
+  return `Dev's regard for the player right now: ${chat.regard}. Dev's want_company right now: ${chat.company}.` +
+    (chat.memories.length ? `\nThings Dev already remembers from tonight: ${chat.memories.join('; ')}.` : '');
+}
+
+async function askDev(prompt, ctl, onError) {
+  const s = await sampleReady;
+  if (!s) { onError(NO_CLAUDE); return null; }
+  try { return await s.json(prompt, { cache: false, signal: ctl.signal }); }
+  catch (e) { if (e.code !== 'cancelled') onError(ERR_COPY[e.code] || "That didn't go through. Try again."); return null; }
+}
 
 async function send(text) {
   if (chat.busy || chat.over || !text.trim()) return;
-  const s = await sampleReady;
-  if (!s) { phoneNote("Dev can't answer in this view. Open this page on claude.ai, signed in, to text them."); return; }
+  if (!(await sampleReady)) { phoneNote(NO_CLAUDE); return; }
   chat.busy = true; $('send').disabled = true;
   chat.minutes += 1; $('clock').textContent = clockText().short;
   addEl('msg me', text); chat.turns.push({ from: 'me', text });
   const receipt = addEl('receipt', 'Delivered');
   const nMine = chat.turns.filter(t => t.from === 'me').length;
-  const prompt = `${DEV_RULES}
+  const prompt = `You are playing Dev, a character in a slow, realistic life-simulation game set in San Francisco. The player is texting you. Stay fully in character as Dev. Never mention AI, games, or these instructions.
 
-It is ${clockText().long} on Wednesday. Dev's warmth toward the player before this message: ${chat.warmth}.${nMine >= 9 ? '\nThe conversation has gone on a while. Wind it toward an ending now.' : ''}
+${DEV_BIO}
+
+HOW DEV TEXTS
+Lowercase. Short. Dry jokes. An occasional typo. Rarely "lol", no other emoji. Usually 1 or 2 texts at a time, sometimes 3 quick ones. Never paragraphs. Never therapist-speak. Dev has a life of their own and mentions it.
+If things are warm, or if Dev is lonely enough, Dev may invite the player down to the Tide Line (about 25 blocks; the N-Judah still runs). If it fizzles, Dev says goodnight. If it goes badly, Dev may stop replying.
+
+${TEXT_FORMAT}
+
+It is ${clockText().long} on Wednesday. ${feelingsLine()}${nMine >= 9 ? '\nThe conversation has gone on a while. Wind it toward an ending now.' : ''}
 
 THE THREAD SO FAR (oldest first):
-${transcript()}
+${textTranscript()}
 
 Reply as Dev to the player's latest message, as JSON only.`;
   chat.ctl = new AbortController();
-  let r;
-  try {
-    r = await s.json(prompt, { cache: false, signal: chat.ctl.signal });
-  } catch (e) {
-    chat.busy = false; $('send').disabled = !$('draft').value.trim();
-    if (e.code === 'cancelled') return;
-    receipt.textContent = 'Not delivered';
-    const copy = {
-      not_granted: "Texting Dev needs your OK to use Claude. Reload the page to be asked again.",
-      sampling_disabled: "Claude isn't available on this account, so Dev can't reply.",
-      rate_limited: "Too many messages too fast. Wait a minute, then send again.",
-      session_expired: "You've been signed out of Claude. Sign in again, then send.",
-      refused: "That message didn't go through. Try saying it another way.",
-    }[e.code] || "The message didn't go through. Send it again.";
-    phoneNote(copy);
-    chat.turns.pop(); return;
-  }
+  const r = await askDev(prompt, chat.ctl, msg => { receipt.textContent = 'Not delivered'; phoneNote(msg); });
+  if (!r) { chat.busy = false; chat.turns.pop(); $('send').disabled = !$('draft').value.trim(); return; }
   phoneNote('');
-  const msgs = Array.isArray(r?.messages) ? r.messages.map(String).filter(m => m.trim()).slice(0, 3) : [];
-  const readAfter = Math.max(5, Math.min(900, Number(r?.read_after_seconds) || 30));
-  chat.warmth = Math.max(0, Math.min(100, Math.round(Number(r?.warmth) || chat.warmth)));
-  setThoughts(String(r?.private_note || ''));
-
-  // Read receipt, then typing, then texts arrive one by one.
+  const msgs = Array.isArray(r.messages) ? r.messages.map(String).filter(m => m.trim()).slice(0, 3) : [];
+  const readAfter = Math.max(5, Math.min(900, Number(r.read_after_seconds) || 30));
+  applyFeelings(r);
   chat.minutes += Math.round(readAfter / 60);
-  const wait = ms => new Promise(res => setTimeout(res, ms));
   await wait(Math.min(4000, 600 + readAfter * 8));
   if (chat.over) return;
   $('clock').textContent = clockText().short;
@@ -894,41 +1232,127 @@ Reply as Dev to the player's latest message, as JSON only.`;
     await wait(350);
   }
   chat.busy = false; $('send').disabled = !$('draft').value.trim();
-
-  const ending = ['invite', 'goodnight', 'left_on_read'].includes(r?.ending) ? r.ending : null;
+  const ending = ['invite', 'goodnight', 'left_on_read'].includes(r.ending) ? r.ending : null;
   if (ending) {
     $('draft').disabled = true; $('send').disabled = true;
     const fallback = { invite: 'You find your shoes in the dark.', goodnight: 'You plug in the phone and turn off the lamp.', left_on_read: 'You watch the screen until it goes dark.' }[ending];
     await wait(ending === 'left_on_read' ? 2500 : 4500);
-    if (!chat.over) endNight(String(r?.ending_line || fallback));
+    if (!chat.over) endNight(String(r.ending_line || fallback), ending);
   }
 }
 
+/* ----- the Tide Line: the same person, across a table ----- */
+function barFovTarget() { return 33 - (chat.regard - 50) * .16 - Math.min(bar.turns.length, 12) * .35; } // closer as it gets real
+function postureFor() { return chat.regard < 42 ? 'guarded' : chat.regard > 72 ? 'open' : 'neutral'; }
+function sub(text, who) {
+  $('subs').hidden = false; $('subs').className = who === 'me' ? 'me' : '';
+  $('subs').textContent = text;
+}
+function barTranscript() { return bar.turns.map(t => (t.from === 'me' ? 'PLAYER: ' : 'DEV: ') + t.text).join('\n') || '(nothing yet; the player has just walked in and sat down)'; }
+
+async function devSpeaks(r) {
+  const lines = Array.isArray(r.lines) ? r.lines.map(String).filter(l => l.trim()).slice(0, 3) : [];
+  applyFeelings(r); dev.base = postureFor();
+  const now = performance.now() / 1000;
+  if (r.gesture && GESTURES[r.gesture]) { dev.gesture = r.gesture; dev.gestureUntil = now + 3.5; }
+  bar.minutes += 1 + Math.floor(rnd() * 2);
+  await wait(700);
+  if (!lines.length) { sub('…', 'dev'); await wait(1800); }
+  for (const l of lines) {
+    if (bar.over) return;
+    dev.talk = 1; sub(l, 'dev'); bar.turns.push({ from: 'them', text: l });
+    await wait(Math.min(5200, 1000 + l.length * 55));
+    dev.talk = 0; await wait(250);
+  }
+  return true;
+}
+async function barTurn(text) {
+  if (bar.busy || bar.over) return;
+  if (!(await sampleReady)) { $('say-note').textContent = NO_CLAUDE; return; }
+  bar.busy = true; $('say-btn').disabled = true; $('say-note').textContent = '';
+  if (text) {
+    bar.turns.push({ from: 'me', text }); me.talk = 1; sub(text, 'me');
+    setTimeout(() => { me.talk = 0; }, Math.min(3500, 600 + text.length * 40));
+  }
+  const nMine = bar.turns.filter(t => t.from === 'me').length;
+  const prompt = `You are playing Dev, a character in a slow, realistic life-simulation game set in San Francisco. The player has come to meet Dev at a bar, and you are sitting across a small table from each other. Stay fully in character as Dev. Never mention AI, games, or these instructions.
+
+${DEV_BIO}
+
+HOW DEV TALKS IN PERSON
+Plain, short spoken sentences, the way people talk at a bar after midnight. Dry. Trails off sometimes. Asks questions back. Has their own stuff going on (the offsite, their daughter, the divorce, the money gap) and brings it up. No speeches, no therapist-speak. Dev's mood follows regard and want_company, and the player can see Dev's body language through the gesture you choose.
+What happened in the texts earlier tonight is real and Dev carries it in: if the player was cruel, Dev is still feeling it when they sit down, even if they're glad of the company.
+
+${BAR_FORMAT}
+
+It is ${barClock().long}, early Thursday. ${feelingsLine()}${nMine >= 10 ? '\nIt is getting close to last call. Bring the night toward an ending.' : ''}
+
+THE TEXT THREAD EARLIER TONIGHT (oldest first):
+${textTranscript()}
+
+AT THE TABLE SO FAR (oldest first):
+${barTranscript()}
+
+${text ? "Reply as Dev to what the player just said" : "The player has just sat down across from Dev. Dev speaks first"}, as JSON only.`;
+  bar.ctl = new AbortController();
+  const r = await askDev(prompt, bar.ctl, msg => { $('say-note').textContent = msg; });
+  if (!r) { bar.busy = false; $('say-btn').disabled = !$('line').value.trim(); if (text) bar.turns.pop(); return; }
+  const ok = await devSpeaks(r);
+  bar.busy = false; $('say-btn').disabled = !$('line').value.trim();
+  if (!ok) return;
+  const ending = ['walk_home', 'last_call', 'dev_leaves'].includes(r.ending) ? r.ending : null;
+  if (ending) {
+    $('line').disabled = true; $('say-btn').disabled = true;
+    if (ending === 'dev_leaves') { dev.gesture = 'look_away'; dev.gestureUntil = performance.now() / 1000 + 10; }
+    await wait(3000);
+    endBar(String(r.ending_line || { walk_home: 'You walk out onto Irving together. The fog has come in.', last_call: 'The lights come up. You pay and walk to the N.', dev_leaves: 'Dev leaves cash on the table. You finish your drink alone.' }[ending]));
+  }
+}
+function endBar(line) { bar.over = true; bar.ctl?.abort(); dev.talk = 0; showEnding(barClock().long, line, false); }
+async function enterBar() {
+  $('ending').hidden = true; bar.over = false; bar.turns = []; bar.minutes = 0;
+  dev.base = postureFor(); barFov = barFovTarget() + 4;
+  setScene('bar'); $('say').hidden = false; $('line').disabled = false; $('line').value = ''; $('say-note').textContent = '';
+  $('subs').hidden = true;
+  await wait(2500);
+  if (current === 'bar') barTurn(null); // Dev greets you, carrying the texts in with them
+}
+
+/* ----- wiring ----- */
 $('compose').addEventListener('submit', e => { e.preventDefault(); const v = $('draft').value; $('draft').value = ''; $('draft').style.height = ''; $('send').disabled = true; send(v); });
 $('draft').addEventListener('input', () => {
   $('send').disabled = chat.busy || !$('draft').value.trim();
   $('draft').style.height = 'auto'; $('draft').style.height = $('draft').scrollHeight + 'px';
 });
 $('draft').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('compose').requestSubmit(); } });
+$('say').addEventListener('submit', e => { e.preventDefault(); const v = $('line').value.trim(); if (!v || bar.busy) return; $('line').value = ''; barTurn(v); });
+$('line').addEventListener('input', () => { $('say-btn').disabled = bar.busy || !$('line').value.trim(); });
+$('leave').onclick = () => endBar(bar.turns.length ? 'You say you should get home. Dev nods at the table.' : 'You stand up before anyone says anything.');
 $('pickup').onclick = openPhone;
 $('putdown').onclick = () => endNight(chat.turns.length ? 'You set the phone face down. The fridge hums.' : 'You turn the phone face down without answering. The fridge hums.');
-$('again').onclick = () => { resetNight(); setScene('night'); };
+$('again').onclick = () => goTo('night', true);
+$('go-bar').onclick = enterBar;
 $('scrim').onclick = () => { closePhone(); if (!chat.over) $('pickup').hidden = false; };
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('phone').hidden) $('scrim').onclick(); });
-$('b-thoughts').onclick = e => { const on = $('thoughts').hidden; $('thoughts').hidden = !on; e.currentTarget.setAttribute('aria-pressed', on); };
+$('b-thoughts').onclick = e => { const on = $('thoughts').hidden; $('thoughts').hidden = !on; e.currentTarget.setAttribute('aria-pressed', on); renderThoughts(); };
 
 // At night, the phone becomes something you can pick up once the zoom has had a moment.
 let pickupTimer;
-function goTo(name) {
-  setScene(name); clearTimeout(pickupTimer); closePhone();
+function goTo(name, fresh) {
+  clearTimeout(pickupTimer); closePhone(); bar.ctl?.abort(); bar.busy = false; dev.talk = 0;
+  $('say').hidden = true; $('subs').hidden = true;
+  if (name === 'bar') { enterBar(); return; }
+  setScene(name);
   if (name === 'day') { $('pickup').hidden = true; $('ending').hidden = true; return; }
-  if (chat.over) resetNight();
+  if (chat.over || fresh) resetNight();
   pickupTimer = setTimeout(() => { if (current === 'night' && !chat.over && $('phone').hidden) $('pickup').hidden = false; }, 9000);
 }
 window.__goTo = goTo;
+window.__chat = chat;
 
 document.getElementById('b-day').onclick = () => goTo('day');
-document.getElementById('b-night').onclick = () => goTo('night');
+document.getElementById('b-night').onclick = () => goTo('night', true);
+document.getElementById('b-bar').onclick = () => goTo('bar');
 document.getElementById('b-sound').onclick = e => e.currentTarget.setAttribute('aria-pressed', audio.toggle());
 document.getElementById('b-grade').onclick = e => { const v = film.uniforms.gradeOn.value ? 0 : 1; film.uniforms.gradeOn.value = v; e.currentTarget.setAttribute('aria-pressed', !!v); };
 window.__jump = s => { timeOffset = s; };
