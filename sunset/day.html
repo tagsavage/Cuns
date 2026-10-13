@@ -71,9 +71,14 @@ button.primary { color: var(--slate); border-color: var(--rust); }
 button.person { color: var(--slate); border-color: #5a4a3a; }
 button[aria-pressed="true"] { color: var(--slate); border-color: var(--rust); }
 .badge { display: inline-block; min-width: 16px; padding: 0 4px; margin-left: 6px; border-radius: 8px; background: var(--me); color: #fff; font-size: 11px; line-height: 16px; text-align: center; font-family: var(--ui-face); }
-#say { display: flex; flex-wrap: wrap; gap: 8px; }
-#say input { flex: 1; min-width: 0; background: transparent; color: var(--slate); border: 1px solid #3a342c; padding: 9px 12px; font-family: var(--slate-face); font-size: 15px; }
-#say input:focus { outline: none; border-color: var(--rust); }
+#say, #do { display: flex; flex-wrap: wrap; gap: 8px; }
+#say input, #do input { flex: 1; min-width: 0; background: transparent; color: var(--slate); border: 1px solid #3a342c; padding: 9px 12px; font-family: var(--slate-face); font-size: 15px; }
+#say input:focus, #do input:focus { outline: none; border-color: var(--rust); }
+#mind { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+#mind .lbl { font-family: var(--slate-face); font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; margin-right: 2px; }
+#mind .need { border-style: dashed; border-color: #6a5a44; color: #e0d4b8; font-size: 12px; padding: 5px 9px; }
+#mind .need.soon { border-color: var(--rust); color: #f0c49a; }
+#mind .plan { font-family: var(--slate-face); font-size: 12px; color: #a8b48a; padding: 5px 2px; }
 #note { font-family: var(--slate-face); font-size: 12px; color: #f0b27a; }
 #note:empty { display: none; }
 #controls { display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: space-between; align-items: center; border-top: 1px solid var(--line); padding-top: 10px; font-family: var(--slate-face); font-size: 12px; color: var(--dim); }
@@ -163,11 +168,17 @@ button[aria-pressed="true"] { color: var(--slate); border-color: var(--rust); }
 </div>
 <section class="col" id="panel">
   <div id="desc" aria-live="polite"></div>
+  <div id="mind" hidden></div>
   <div id="acts"></div>
   <form id="say" hidden>
     <input id="line" type="text" autocomplete="off" placeholder="Say something" aria-label="What you say">
     <button id="say-btn" type="submit" class="primary" disabled>Say it</button>
     <button id="step-away" type="button">Step away</button>
+  </form>
+  <form id="do" hidden>
+    <input id="act" type="text" autocomplete="off" placeholder="What do you do? e.g. pack her a turkey sandwich, no crusts" aria-label="What you do">
+    <button id="do-btn" type="submit" class="primary" disabled>Do it</button>
+    <button id="do-cancel" type="button">Never mind</button>
   </form>
   <div id="note" aria-live="polite"></div>
 </section>
@@ -1138,6 +1149,7 @@ const weekday = d => DAYS[(d) % 7];             // day 1 = Tuesday
 const isWeekday = d => (d % 7) < 5;
 function fmt(min) { const m = ((min % 1440) + 1440) % 1440, h = Math.floor(m / 60), mm = m % 60; return `${((h + 11) % 12) + 1}:${String(mm).padStart(2, '0')} ${h < 12 ? 'A.M.' : 'P.M.'}`; }
 const fmtShort = min => fmt(min).replace(/ [AP]\.M\./, '');
+const fmtAp = min => fmt(min).replace(' A.M.', 'am').replace(' P.M.', 'pm');
 
 const PLAYER = `The player is 47, a product manager at Slack: successful, but plateaued. Many friends have left for frontier AI labs; the player has interviewed at a few without landing. Married; their spouse works at a biotech firm in Marin and can't drive, so she takes three buses each way. Two kids, 7 and 10. They own a 3-bed, 2-bath condo on the third floor of a four-story mixed-use building at 46th Ave and Judah in the Outer Sunset. Household net worth is nearing $6M and the player wonders if they could retire. Good health, exercises, dad bod. Restless at night; goes to bars, restaurants and movies just to feel something. Loves taking the kids places but is never sure where. Vibe codes with the 10-year-old; they know it's not going anywhere, but it makes the world feel full of possibility.`;
 
@@ -1173,6 +1185,7 @@ function freshWorld() {
       priya: { id: 'priya', name: 'Priya', hasNumber: true, regard: 55, company: 30, memories: [], facts: [], look: { skin: 'brown', hair: 'black', top: 'navy' },
         bio: 'Priya, the player\'s manager at Slack. 39, sharp, decent, overextended, under pressure from her own boss about AI features. Likes the player but has started to wonder if they still want this job. Texts in full sentences.' },
     },
+    needs: [], plans: [], kidsAt: null,
     texts: { wife: [], dev: [{ me: false, text: 'musée mécanique. trust me. bring quarters', at: 'Saturday' }] },
     unread: {},
   };
@@ -1239,16 +1252,182 @@ function wifeHome(min) { if (!isWeekday(S.day)) return min >= 8 * 60; return min
 function familyHere(place) {
   const out = [];
   if (place === 'home' && wifeHome(S.min) && !S.wifeAway) out.push('wife');
-  const kidsHere = (S.kids === 'home' && place === 'home') || S.kids === 'with' || (S.kids === 'school' && place === 'school' && S.min >= 14 * 60 + 50);
+  const kidsHere = (S.kids === 'home' && place === 'home') || S.kids === 'with' || (S.kids === 'school' && place === 'school' && S.min >= 14 * 60 + 50) || (S.kids === 'elsewhere' && S.kidsAt === place);
   if (kidsHere) out.push('big', 'little');
   return out;
 }
 function kidsLine() {
-  return { home: 'The kids are at home.', with: 'Both kids are with the player.', school: 'The kids are at school.', aftercare: 'The kids are in aftercare at school; the player missed pickup.', bed: 'The kids are asleep.' }[S.kids] || '';
+  return { home: 'The kids are at home.', with: 'Both kids are with the player.', school: 'The kids are at school.', aftercare: 'The kids are in aftercare at school; the player missed pickup.', bed: 'The kids are asleep.', transit: 'The kids are out on their own, on their way somewhere.', elsewhere: `The kids are at ${PLACES[S.kidsAt]?.name || 'somewhere else'} without the player.` }[S.kids] || '';
 }
+/* ---------- the game master's ledger: what's owed, what's in motion ---------- */
+// Claude decides what happens; this only keeps track of what was agreed, where people went, and when time ran out.
+const PLACE_IDS = Object.keys(PLACES);
+let idSeq = 0;
+const newId = pre => pre + (Date.now() % 100000).toString(36) + (idSeq++);
+function parseClock(str, ref = S.min) {
+  if (str == null || str === '') return null;
+  const m = String(str).match(/(\d{1,2}):(\d{2})\s*([ap])?/i); if (!m) return null;
+  let h = +m[1]; const mm = +m[2];
+  if (m[3]) { const pm = /p/i.test(m[3]); if (pm && h < 12) h += 12; if (!pm && h === 12) h = 0; }
+  let t = Math.floor(ref / 1440) * 1440 + h * 60 + mm;
+  if (t < ref - 90) t += 1440;
+  return t;
+}
+const nameOf = id => id === 'player' ? 'you' : (S.people[id]?.name || id);
+function addNeed(text, by, from, kind) {
+  text = String(text || '').trim().slice(0, 110); if (!text) return;
+  if (S.needs.some(n => n.status === 'open' && n.text.toLowerCase() === text.toLowerCase())) return;
+  S.needs.push({ id: newId('n'), text, by: by ?? null, from: from || null, kind: kind || 'task', status: 'open' });
+  toast('On your mind', text + (by ? ` · by ${fmt(by)}` : ''));
+}
+function meetNeeds(ids, how) {
+  for (const id of Array.isArray(ids) ? ids : []) {
+    const n = S.needs.find(x => x.id === id && x.status === 'open');
+    if (n) { n.status = 'met'; n.done = fmt(S.min); logIt(`Done: ${n.text}.${how ? ' ' + how : ''}`); }
+  }
+}
+function addPlan(a, fromId) {
+  const who = (Array.isArray(a.who) ? a.who : [a.who]).map(x => String(x).toLowerCase()).filter(Boolean);
+  const people = who.filter(id => id !== 'player' && S.people[id]);
+  const at = parseClock(a.at) ?? S.min + 2, mins = Math.max(5, Math.min(240, Number(a.minutes) || 20));
+  const what = String(a.what || '').slice(0, 110); if (!what) return;
+  if (who.includes('player')) addNeed(what, at, fromId, 'promise');        // you said you'd do it: now you owe it
+  if (!people.length) return;
+  if (S.plans.some(p => p.status !== 'done' && p.what === what)) return;
+  const to = PLACE_IDS.includes(a.to) ? a.to : null;
+  S.plans.push({ id: newId('p'), who: people, what, at, until: at + mins, to, status: 'pending' });
+  logIt(`Agreed: ${people.map(nameOf).join(' and ')} will ${what} at ${fmt(at)}.`);
+}
+function applyDeals(r, fromId) {
+  for (const a of (Array.isArray(r?.agreements) ? r.agreements : []).slice(0, 2)) addPlan(a, fromId);
+  for (const a of (Array.isArray(r?.asks) ? r.asks : []).slice(0, 2)) addNeed(a.text, parseClock(a.by), fromId, 'task');
+  for (const id of (Array.isArray(r?.needs_met) ? r.needs_met : [])) meetNeeds([id]);
+  renderMind();
+}
+const kidsIn = ids => ids.includes('big') || ids.includes('little');
+function ledgerText() {
+  const open = S.needs.filter(n => n.status === 'open');
+  const plans = S.plans.filter(p => p.status !== 'done');
+  return `Open needs (things the player is expected to do): ${open.length ? '\n' + open.map(n => `- [${n.id}] ${n.text}${n.by ? ', by ' + fmt(n.by) : ''}${n.from ? ', for ' + nameOf(n.from) : ''}${n.kind === 'promise' ? ' (the player promised)' : ''}`).join('\n') : 'none.'}
+Plans in motion: ${plans.length ? '\n' + plans.map(p => `- ${p.who.map(nameOf).join(' and ')}: ${p.what}, ${p.status === 'pending' ? 'starting ' + fmt(p.at) : 'under way since ' + fmt(p.at)}${p.to ? ' (to ' + PLACES[p.to].name + ')' : ''}`).join('\n') : 'none.'}
+Place ids: ${PLACE_IDS.map(id => `${id} = ${PLACES[id].name}`).join(', ')}.`;
+}
+const worldQueue = [];
+function checkWorld(from, to) {
+  for (const p of S.plans) {
+    if (p.status === 'pending' && p.at <= to) {
+      p.status = 'underway';
+      if (kidsIn(p.who)) S.kids = 'transit';
+      for (const id of p.who) if (!S.people[id]?.fam && p.to) S.people[id].haunt = p.to;
+      if (S.scene) {
+        const leaving = S.scene.present.filter(x => p.who.includes(x.id));
+        if (talking && p.who.includes(talking)) endTalk('They had somewhere to be.');
+        if (leaving.length) { S.scene.present = S.scene.present.filter(x => !p.who.includes(x.id)); S.scene.event = `${leaving.map(x => S.people[x.id].name).join(' and ')} head${leaving.length > 1 ? '' : 's'} out${p.to ? ' for ' + PLACES[p.to].name : ''}.`.replace(/ and Your /, ' and your '); placeFigures(); renderDesc(); renderActs(); }
+      }
+    }
+    if (p.status === 'underway' && p.until <= to) { p.status = 'resolving'; worldQueue.push({ kind: 'plan', item: p }); }
+  }
+  for (const n of S.needs) if (n.status === 'open' && n.by != null && n.by <= to) { n.status = 'missed'; worldQueue.push({ kind: 'missed', item: n }); }
+}
+let flushingWorld = false;
+async function flushWorld() {
+  if (flushingWorld) return; flushingWorld = true;
+  try {
+    while (worldQueue.length) {
+      const { kind, item } = worldQueue.shift();
+      const task = kind === 'plan'
+        ? `This plan just played out away from the player: ${item.who.map(nameOf).join(' and ')} — "${item.what}" — from ${fmt(item.at)} to ${fmt(item.until)}${item.to ? ', headed to ' + PLACES[item.to].name : ''}. Decide honestly how it went, given who these people are (children are children; most ordinary things go fine, some go sideways).`
+        : `A deadline passed: "${item.text}"${item.from ? ' (for ' + nameOf(item.from) + ')' : ''}, due ${fmt(item.by)}. It did not get done. Decide the realistic consequence: usually small, sometimes not. Whoever cares will remember.`;
+      const r = await ask(`${DIRECTOR}
+
+THE WORLD RIGHT NOW
+${contextText()}
+
+PEOPLE THE WORLD KNOWS
+${rosterText()}
+
+TASK
+${task}
+
+Reply with ONLY one JSON object:
+{"outcome": "1 or 2 sentences, past tense, specific and plain",
+ "succeeded": true or false,
+ "ended_at": "${kind === 'plan' ? 'the place id where the people in the plan are now' : 'null'}",
+ "text": null or {"from": "a known id (family members can text; the older kid can use an old phone)", "text": "a text they send the player about it"},
+ "remembers": [0 to 2 {"id": "person id", "text": "a few words"}],
+ "needs_met": [ids of open needs this satisfied],
+ "new_need": null or {"text": "something the player now has to deal with", "by": "HH:MM 24-hour or null"}}`);
+      const outcome = String(r?.outcome || (kind === 'plan' ? `${item.who.map(nameOf).join(' and ')}: ${item.what}. It happened.` : `${item.text}: it didn't happen.`));
+      if (kind === 'plan') {
+        item.status = 'done'; item.result = outcome;
+        const end = PLACE_IDS.includes(r?.ended_at) ? r.ended_at : item.to;
+        if (kidsIn(item.who)) {
+          if (end === 'school' && isWeekday(S.day) && S.min < 15 * 60 + 30 && r?.succeeded !== false) { S.kids = 'school'; S.flags.dropped = true; }
+          else if (!end || end === 'home') S.kids = S.min >= 20 * 60 + 30 ? 'bed' : 'home';
+          else { S.kids = 'elsewhere'; S.kidsAt = end; }
+        }
+        for (const id of item.who) if (!S.people[id]?.fam && end) S.people[id].haunt = end;
+      } else item.result = outcome;
+      logIt(outcome);
+      for (const m of (Array.isArray(r?.remembers) ? r.remembers : []).slice(0, 2)) if (S.people[m?.id]) remember(m.id, String(m.text || '').slice(0, 80));
+      meetNeeds(r?.needs_met);
+      if (r?.new_need?.text) addNeed(r.new_need.text, parseClock(r.new_need.by), null, 'task');
+      if (r?.text?.from && S.people[r.text.from] && r.text.text) { S.people[r.text.from].hasNumber = true; textFrom(r.text.from, String(r.text.text)); }
+      else toast(kind === 'plan' ? 'Meanwhile' : 'Too late', outcome);
+      if (S.scene && S.scene.place === S.place) { S.scene.event = outcome; renderDesc(); }
+      renderMind(); renderActs(); save();
+    }
+  } finally { flushingWorld = false; }
+}
+
+/* ---------- "Do something…": you say what you do, the director referees ---------- */
+let doBusy = false;
+function openDo(prefill) {
+  if (talking) endTalk();
+  $('do').hidden = false; $('acts').hidden = true; $('act').value = prefill || ''; $('act').focus();
+  $('do-btn').disabled = !$('act').value.trim();
+}
+function closeDo() { $('do').hidden = true; $('acts').hidden = false; }
+async function doAction(text) {
+  if (doBusy) return; doBusy = true; $('do-btn').disabled = true; $('note').textContent = '';
+  closeDo(); setBusy(true, `You: ${text}`);
+  const r = await direct('act', text);
+  doBusy = false;
+  if (!r) { setBusy(false); renderDesc(); renderActs(); $('note').textContent = lastErr; return; }
+  applyScene(r, 'act');
+  S.scene.closer = (r.possible === false ? '' : '') + String(r.description || '').trim();
+  const mins = r.possible === false ? 1 : Math.max(1, Math.min(240, Number(r.minutes) || 5));
+  advance(mins); S.energy = clamp(S.energy + (Number(r.energy) || 0), S.energy);
+  logIt(`${r.possible === false ? 'Tried to' : 'Did:'} ${text.slice(0, 80)}. ${String(r.description || '').slice(0, 100)}`);
+  placeFigures(); setBusy(false); renderDesc(); renderActs(); save();
+  if (PLACE_IDS.includes(r.go_to) && r.go_to !== S.place) { await wait(1500); await goTo(r.go_to); return; }
+  await flushCards();
+}
+
+/* ---------- on your mind ---------- */
+function renderMind() {
+  const el = $('mind'); el.replaceChildren();
+  const open = S.needs.filter(n => n.status === 'open').sort((a, b) => (a.by ?? 1e9) - (b.by ?? 1e9));
+  const plans = S.plans.filter(p => p.status === 'pending' || p.status === 'underway');
+  const recent = S.needs.filter(n => n.status === 'met' && n.doneDay !== -1).slice(-2);
+  if (!open.length && !plans.length) { el.hidden = true; return; }
+  el.hidden = false;
+  const h = document.createElement('span'); h.className = 'lbl'; h.textContent = 'On your mind'; el.append(h);
+  for (const n of open) {
+    const b = document.createElement('button'); b.className = 'need' + (n.by && n.by - S.min < 30 ? ' soon' : '');
+    b.textContent = n.text + (n.by ? ` · by ${fmtAp(n.by)}` : '') + (n.from ? ` · ${nameOf(n.from).replace(/^Your /, '')}` : '');
+    b.title = 'Do something about this'; b.onclick = () => openDo(n.text); el.append(b);
+  }
+  for (const p of plans) {
+    const s = document.createElement('span'); s.className = 'plan';
+    s.textContent = `${p.who.map(nameOf).join(' & ').replace(/ & Your /g, ' & your ')}: ${p.what} · ${p.status === 'pending' ? fmtAp(p.at) : 'under way'}`; el.append(s);
+  }
+  void recent;
+}
+
 // Things that happen at set times. Each fires once per day.
 const CLOCK = [
-  { at: 7 * 60 + 35, id: 'wife-leaves', run: () => { if (!isWeekday(S.day)) return; if (S.place === 'home') note('Your wife leaves for her three buses.'); textFrom('wife', S.kids === 'home' || S.kids === 'with' ? "ok i'm off. kids need to be at school by 8:15. permission slip is on the counter" : "ok i'm off"); } },
+  { at: 7 * 60 + 35, id: 'wife-leaves', run: () => { if (!isWeekday(S.day)) return; if (S.place === 'home') note('Your wife leaves for her three buses.'); const kidsAround = S.kids === 'home' || S.kids === 'with'; textFrom('wife', kidsAround ? "ok i'm off. kids need to be at school by 8:15. permission slip is on the counter" : "ok i'm off"); if (kidsAround) addNeed('Get the permission slip to school', 8 * 60 + 15, 'wife'); } },
   { at: 8 * 60 + 40, id: 'absent', run: () => { if (!isWeekday(S.day) || S.flags.dropped) return; S.flags.absent = true; textFrom('school', "Sunset Elementary: Your children have been marked absent today. Please call the office."); remember('wife', 'kids marked absent from school'); setTimeout(() => textFrom('wife', 'why did the school just text me they\'re absent??'), 2500); } },
   { at: 10 * 60, id: 'mtg1', run: () => isWeekday(S.day) && meeting('Q4 roadmap sync', 'mtg1') },
   { at: 12 * 60 + 25, id: 'wife-noon', run: () => isWeekday(S.day) && aiText('wife', 'It is lunchtime at her office in Marin. She sends a short, ordinary midday text to the player, based on what she knows of the day so far.') },
@@ -1269,7 +1448,7 @@ function runClock(from, to) {
 function advance(mins, walking) {
   const from = S.min; S.min += Math.max(0, Math.round(mins));
   S.energy = clamp(S.energy - mins * (walking ? .1 : .05) - (S.min > 24 * 60 ? mins * .1 : 0), 0);
-  runClock(from, S.min); hud(); save();
+  runClock(from, S.min); checkWorld(from, S.min); hud(); renderMind(); save();
 }
 function meeting(title, id) { pendingCards.push({ kind: 'meeting', title, id, min: S.min }); }
 function logIt(text) { S.log.push({ d: S.day, m: S.min, text }); }
@@ -1296,7 +1475,8 @@ ${kidsLine()} ${isWeekday(S.day) ? `The player has work meetings at 10:00 and 2:
 Player energy: ${Math.round(S.energy)}/100. Spent today: $${S.spent}.
 Recent events (oldest first):
 ${S.log.slice(-10).map(l => `- day ${l.d} ${fmt(l.m)}: ${l.text}`).join('\n') || '- (nothing yet today)'}
-Open loose ends: ${S.threads.length ? S.threads.join('; ') : 'none'}.`;
+Open loose ends: ${S.threads.length ? S.threads.join('; ') : 'none'}.
+${ledgerText()}`;
 }
 
 /* ---------- the director ---------- */
@@ -1319,7 +1499,14 @@ const DIRECTOR_FORMAT = `Reply with ONLY one JSON object:
  "minutes": how many minutes this took (0 for arriving),
  "spend": dollars the player spent (0 unless they bought something),
  "thread": null or a new loose end, a few words, that the player might follow up on later,
- "text": null or {"from": "a known id who has the player's number", "text": "a text message they send now"} (rare)}`;
+ "text": null or {"from": "a known id who has the player's number", "text": "a text message they send now"} (rare),
+ "needs_met": [ids of open needs that are now done because of what happened],
+ "asks": [0 to 2 new things someone here now expects the player to do, each {"text": "short", "by": "HH:MM 24-hour or null"}],
+ "agreements": [0 to 2 things people here have now agreed to go and do, each {"who": ["person ids", or "player"], "what": "short", "at": "HH:MM 24-hour or null for now", "minutes": how long, "to": "place id or null"}],
+ "remembers": [0 to 2 {"id": "person id", "text": "a few words they will remember"}],
+ "possible": true, or false if the player tried something that can't be done here and now (say why in description),
+ "go_to": null, or a place id if the player's action means going somewhere else,
+ "energy": change in the player's energy, usually 0}`;
 
 async function direct(kind, extra = '') {
   const here = familyHere(S.place).map(id => S.people[id].name).join(', ');
@@ -1329,6 +1516,7 @@ async function direct(kind, extra = '') {
     linger: 'The player hangs around here for about 30 minutes. Say what changes: who leaves, who arrives, what happens. Set minutes to about 30.',
     look: `The player looks more closely at: ${extra}. Describe what they find in 1 to 3 sentences in "description" (it is added to the scene, so do not repeat the scene). Keep everyone currently here in "present". Set minutes to about 5.`,
     wake: 'It is the start of a new day and the player has just woken up at home. Describe the morning.',
+    act: `The player does this: "${extra}". You are the game master. Decide whether it can be done here and now (the place, the hour, what's at hand, money, who's around), how long it takes, and what happens. Small ordinary actions simply succeed; be fair, concrete and realistic, never preachy. If it can't be done, set possible to false and say why in "description" (it is added to the scene, so don't repeat the scene). If it settles an open need, list that need's id in needs_met. Keep everyone currently here in "present" unless the action changes that. If the action means travelling somewhere, set go_to and keep the description to the moment of leaving.`,
   }[kind];
   const prompt = `${DIRECTOR}
 
@@ -1354,7 +1542,7 @@ const FALLBACK = {
   tide: 'Red neon, a jukebox nobody is choosing songs on, two regulars at the bar who have clearly been here a while.',
 };
 function applyScene(r, kind) {
-  const keep = kind === 'look' && S.scene ? S.scene : null;
+  const keep = (kind === 'look' || kind === 'act') && S.scene ? S.scene : null;
   const present = [];
   const forced = familyHere(S.place);
   for (const e of (Array.isArray(r?.present) ? r.present : []).slice(0, 4)) {
@@ -1375,11 +1563,13 @@ function applyScene(r, kind) {
     S.scene = { place: S.place, desc: String(r?.description || FALLBACK[S.place]).trim(), present, details: [], event: r?.event ? String(r.event) : null, closer: null };
   }
   const dets = Array.isArray(r?.details) ? r.details.slice(0, 3).map(d => ({ id: String(d.id || d.label || '').slice(0, 30), label: String(d.label || d.id || '').slice(0, 60) })).filter(d => d.label) : [];
-  if (kind !== 'look' || dets.length) S.scene.details = dets;
+  if ((kind !== 'look' && kind !== 'act') || dets.length) S.scene.details = dets;
   const spend = Math.max(0, Math.min(500, Number(r?.spend) || 0)); if (spend) { S.spent += spend; S.balance -= spend; if (/coffee|latte|espresso/i.test(JSON.stringify(r))) S.energy = clamp(S.energy + 10, 0); }
   if (r?.thread) { const t = String(r.thread).slice(0, 80); if (!S.threads.includes(t)) S.threads.push(t); }
   if (r?.text?.from && S.people[r.text.from]?.hasNumber && r.text.text) textFrom(r.text.from, String(r.text.text));
-  logIt(`${kind === 'look' ? 'Looked at something' : kind === 'linger' ? 'Hung around' : 'Arrived'} at ${PLACES[S.place].name.replace(/\.$/, '')}. ${(r?.event || r?.description || '').slice(0, 110)}`);
+  for (const m of (Array.isArray(r?.remembers) ? r.remembers : []).slice(0, 2)) if (S.people[m?.id]) remember(m.id, String(m.text || '').slice(0, 80));
+  applyDeals(r, null);
+  if (kind !== 'act') logIt(`${kind === 'look' ? 'Looked at something' : kind === 'linger' ? 'Hung around' : 'Arrived'} at ${PLACES[S.place].name.replace(/\.$/, '')}. ${(r?.event || r?.description || '').slice(0, 110)}`);
   for (const p of S.scene.present) if (p.says) { S.convo = null; }
 }
 
@@ -1406,6 +1596,8 @@ Your regard for the player: ${p.regard}. Your want_company: ${p.company}.
 RIGHT NOW
 ${weekday(S.day)}, ${fmt(S.min)}. ${mode === 'text' ? `You are wherever you would be at this hour.` : `${PLACES[S.place].name}. ${scene}${others ? ' Also here: ' + others + '.' : ''}`} ${p.fam ? kidsLine() : ''}
 ${S.flags.halcyon && (p.fam || p.id === 'dev') ? '' : ''}
+${ledgerText()}
+
 ${FEEL_RULES}
 
 STYLE
@@ -1424,7 +1616,11 @@ Reply with ONLY one JSON object:
  "facts": [0 to 2 short facts you revealed about yourself],
  "gives_number": true if you just gave the player your number, else false,
  "thread": null or a loose end the player could follow up on later (a few words),
- "leaves": true if you are ending this conversation and going (or putting your phone down), else false}`;
+ "leaves": true if you are ending this conversation and going (or putting your phone down), else false,
+ "agreements": [0 to 2 things that were just SETTLED to actually be done in the world (not merely discussed), each {"who": ["ids of who does it: your own id, other people's ids, and/or \"player\""], "what": "short, e.g. 'walk your little sibling to school'", "at": "HH:MM 24-hour when it starts, or null for right away", "minutes": how long it takes, "to": "place id or null"}],
+ "asks": [0 to 2 things you now expect the player to do (a request you made or a promise they made you), each {"text": "short", "by": "HH:MM 24-hour or null"}],
+ "needs_met": [ids of open needs that this conversation settled]}
+Your id is "${p.id}". Do not repeat agreements or asks that are already open.`;
 }
 function applyFeelings(p, r) {
   p.regard = clamp(r?.regard, p.regard); p.company = clamp(r?.want_company, p.company);
@@ -1461,7 +1657,7 @@ async function sayLine(text) {
   talkCtl = new AbortController();
   const r = await ask(personPrompt(p, 'talk', tr), talkCtl);
   if (!r) { talkBusy = false; p.talk.pop(); $('note').textContent = lastErr; $('say-btn').disabled = !$('line').value.trim(); return; }
-  applyFeelings(p, r);
+  applyFeelings(p, r); applyDeals(r, p.id);
   const fig = figures.get(p.id);
   if (fig && r.gesture && GESTURES[r.gesture]) { fig.gesture = r.gesture; fig.gestureUntil = performance.now() / 1000 + 3.5; }
   if (fig) fig.base = fig.kind === 'sit' ? (p.regard < 42 ? 'guarded' : p.regard > 72 ? 'open' : 'neutral') : (p.regard < 40 ? 'guarded' : 'stand');
@@ -1502,7 +1698,7 @@ async function aiText(id, situation) {
   const tr = (S.texts[id] || []).slice(-10).map(t => (t.me ? 'PLAYER: ' : 'YOU: ') + t.text).join('\n');
   const r = await ask(personPrompt(p, 'text', tr) + `\n\nSITUATION: ${situation} Write the text(s) you send now, unprompted.`);
   const lines = (Array.isArray(r?.lines) ? r.lines : []).map(String).filter(Boolean).slice(0, 2);
-  if (r) applyFeelings(p, r);
+  if (r) { applyFeelings(p, r); applyDeals(r, id); }
   for (const l of lines) { textFrom(id, l); await wait(1200); }
 }
 function openPhone(id) {
@@ -1543,7 +1739,7 @@ async function sendText(text) {
   const tr = S.texts[id].slice(-14).map(t => (t.me ? 'PLAYER: ' : 'YOU: ') + t.text).join('\n');
   const r = await ask(personPrompt(p, 'text', tr));
   if (!r) { rc.textContent = 'Not delivered'; S.texts[id].pop(); $('phone-note').hidden = false; $('phone-note').textContent = lastErr; textBusy = false; $('send').disabled = !$('draft').value.trim(); return; }
-  applyFeelings(p, r); advance(1);
+  applyFeelings(p, r); applyDeals(r, id); advance(1);
   const readAfter = Math.max(5, Math.min(900, Number(r.read_after_seconds) || 30));
   await wait(Math.min(3500, 600 + readAfter * 6));
   rc.textContent = 'Read ' + fmtShort(S.min);
@@ -1573,6 +1769,7 @@ function card(time, h, p, buttons, solid) {
 }
 function hideCard() { $('card').hidden = true; }
 async function flushCards() {
+  await flushWorldSoon();
   while (pendingCards.length) {
     const c = pendingCards.shift();
     if (c.kind === 'meeting') {
@@ -1585,12 +1782,14 @@ async function flushCards() {
   }
 }
 
+function flushWorldSoon() { flushWorld(); }
 /* ---------- moving around ---------- */
 async function goTo(dest) {
   closeMap(); closePhone(); if (talking) endTalk();
   const from = S.place, tr = travel(from, dest);
-  if (from === 'home' && S.kids === 'home' && S.min < 15 * 60 && isWeekday(S.day) && !S.flags.dropped) S.kids = 'with';           // you can't leave a 7-year-old alone
-  if (from === 'home' && S.kids === 'home' && (!isWeekday(S.day) || S.flags.dropped) && !wifeHome(S.min)) S.kids = 'with';
+  const kidsBusy = S.plans.some(p => p.status !== 'done' && kidsIn(p.who));
+  if (!kidsBusy && from === 'home' && S.kids === 'home' && S.min < 15 * 60 && isWeekday(S.day) && !S.flags.dropped) S.kids = 'with';           // you can't leave a 7-year-old alone
+  if (!kidsBusy && from === 'home' && S.kids === 'home' && (!isWeekday(S.day) || S.flags.dropped) && !wifeHome(S.min)) S.kids = 'with';
   const withKids = S.kids === 'with' ? ' with the kids' : '';
   card(fmt(S.min), tr.how === 'N-Judah' ? `Taking the N to ${PLACES[dest].name}` : `Walking to ${PLACES[dest].name}`, `${tr.min} minutes${withKids}.${tr.fare ? ` $${tr.fare * (S.kids === 'with' ? 1 : 1)} fare.` : ''}`, [], false);
   setStage(PLACES[dest].stage, PLACES[dest].dress, true);
@@ -1620,7 +1819,7 @@ async function lookAt(det) {
   applyScene(r, 'look'); advance(Number(r?.minutes) || 5); placeFigures(); setBusy(false); renderDesc(); renderActs(); save();
   await flushCards();
 }
-function setBusy(on, text) { $('acts').querySelectorAll('button').forEach(b => b.disabled = on); if (on) { $('desc').classList.add('loading'); $('desc').textContent = text; } else $('desc').classList.remove('loading'); }
+function setBusy(on, text) { $('acts').querySelectorAll('button').forEach(b => b.disabled = on); $('mind').querySelectorAll('button').forEach(b => b.disabled = on); if (on) { $('desc').classList.add('loading'); $('desc').textContent = text; } else $('desc').classList.remove('loading'); }
 
 async function rest(hours) {
   setBusy(true, hours >= 6 ? 'You go to bed.' : 'You lie down on the sofa.');
@@ -1634,12 +1833,14 @@ async function rest(hours) {
 The player has gone to bed. Here is their ${weekday(S.day)}:
 ${S.log.filter(l => l.d === S.day).map(l => `- ${fmt(l.m)}: ${l.text}`).join('\n')}
 ${kidsLine()} Work standing ${S.work}/100. Spent $${S.spent}.
+Still undone: ${S.needs.filter(n => n.status === 'open').map(n => n.text).join('; ') || 'nothing'}.
 
 Reply with ONLY JSON: {"summary": "the day as 3 or 4 short film-slate lines, second person, past tense, plain and specific, separated by newlines", "tomorrow_weather": "short, e.g. 'fog, 55°F' or 'clear and windy, 64°F'"}`);
   const day = S.day, summary = r?.summary ? String(r.summary) : 'The day happened. Some of it on purpose.';
   logIt('Went to bed.');
   S.day += 1; S.min = 7 * 60 + 5; S.energy = clamp(Math.min(90, 55 + S.energy * .4 + 25), 70); S.spent = 0; S.kids = 'home'; S.place = 'home'; S.convo = null;
   S.weather = r?.tomorrow_weather ? String(r.tomorrow_weather).slice(0, 40) : 'fog, 56°F'; S.flags.dropped = false; S.flags.absent = false; S.scene = null;
+  S.needs = S.needs.filter(n => n.status === 'open').map(n => ({ ...n, by: null })); S.plans = [];
   for (const k of Object.keys(S.flags)) if (k.endsWith(':' + day)) delete S.flags[k];
   save();
   card(`End of ${weekday(day)}`, weekday(day), summary, [[`Wake up ${weekday(S.day)}`, async () => { hideCard(); await wakeUp(); }, true]], true);
@@ -1670,11 +1871,13 @@ function renderDesc() {
 function btn(label, fn, cls) { const b = document.createElement('button'); b.textContent = label; if (cls) b.className = cls; b.onclick = fn; return b; }
 function lbl(t) { const s = document.createElement('span'); s.className = 'lbl'; s.textContent = t; return s; }
 function renderActs() {
+  renderMind();
   const a = $('acts'); a.replaceChildren();
   if (!S.scene) return;
   const ppl = S.scene.present.filter(p => S.people[p.id]);
   if (ppl.length) { a.append(lbl('Talk to')); for (const p of ppl) { const per = S.people[p.id]; a.append(btn(per.name + (p.doing && !per.fam ? ` — ${p.doing}` : ''), () => startTalk(p.id), 'person')); } a.append(sep()); }
   if (S.scene.details?.length) { a.append(lbl('Look at')); for (const d of S.scene.details) a.append(btn(d.label, () => lookAt(d))); a.append(sep()); }
+  a.append(btn('Do something…', () => openDo(), 'primary'));
   a.append(btn('Go somewhere…', openMap, 'primary'));
   a.append(btn('Hang around (30 min)', linger));
   const unread = Object.values(S.unread).reduce((x, y) => x + y, 0);
@@ -1827,6 +2030,9 @@ function loop(now) {
 $('say').addEventListener('submit', e => { e.preventDefault(); const v = $('line').value.trim(); if (!v || talkBusy) return; $('line').value = ''; $('say-btn').disabled = true; sayLine(v); });
 $('line').addEventListener('input', () => { $('say-btn').disabled = talkBusy || !$('line').value.trim(); });
 $('step-away').onclick = () => endTalk();
+$('do').addEventListener('submit', e => { e.preventDefault(); const v = $('act').value.trim(); if (!v || doBusy) return; doAction(v); });
+$('act').addEventListener('input', () => { $('do-btn').disabled = doBusy || !$('act').value.trim(); });
+$('do-cancel').onclick = closeDo;
 $('compose').addEventListener('submit', e => { e.preventDefault(); const v = $('draft').value; $('draft').value = ''; $('draft').style.height = ''; $('send').disabled = true; sendText(v); });
 $('draft').addEventListener('input', () => { $('send').disabled = textBusy || !$('draft').value.trim(); $('draft').style.height = 'auto'; $('draft').style.height = $('draft').scrollHeight + 'px'; });
 $('draft').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('compose').requestSubmit(); } });
@@ -1849,7 +2055,7 @@ async function boot() {
   const intro = `The Outer Sunset, present day. You are 47, a product manager with two kids, a wife who takes three buses to Marin, and a condo at 46th and Judah.\n\nNothing is required of you. Go where you want. People remember.`;
   if (saved && saved.v === 1 && saved.people) {
     card('', 'One Open Day', intro, [[`Continue: ${weekday(saved.day)}, ${fmt(saved.min)}`, async () => {
-      S = saved; hideCard(); setStage(PLACES[S.place].stage, PLACES[S.place].dress, true); hud();
+      S = saved; S.needs ||= []; S.plans ||= []; hideCard(); setStage(PLACES[S.place].stage, PLACES[S.place].dress, true); hud();
       if (!S.scene || S.scene.place !== S.place) { setBusy(true, 'Picking up where you left off…'); const r = await direct('arrive'); applyScene(r, 'arrive'); setBusy(false); }
       placeFigures(); renderDesc(); renderActs(); await flushCards();
     }, true], ['Start a new world', () => $('b-restart').click()]], true);
