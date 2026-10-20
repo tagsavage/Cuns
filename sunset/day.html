@@ -23,7 +23,7 @@ body {
   display: flex; flex-direction: column; align-items: center; gap: 12px;
   padding-inline: 16px; padding-block: 12px 24px; box-sizing: border-box; min-height: 100%;
 }
-.col { width: min(100%, calc((100vh - 290px) * 1.85)); min-width: min(100%, 560px); max-width: 100%; }
+.col { width: min(100%, calc((64vh - 170px) * 1.85)); min-width: min(100%, 560px); max-width: 100%; }
 #stage { position: relative; aspect-ratio: 1.85 / 1; background: #000; overflow: hidden; }
 #stage canvas { display: block; width: 100%; height: 100%; }
 #hud { position: absolute; left: 3%; top: 5%; font-family: var(--slate-face); font-size: clamp(11px, 1.35vw, 16px); line-height: 1.35; text-shadow: 0 1px 2px rgba(0,0,0,.7); pointer-events: none; }
@@ -150,7 +150,54 @@ button[aria-pressed="true"] { color: var(--slate); border-color: var(--rust); }
 #thoughts .meter b { display: block; height: 100%; background: var(--rust); transition: width .8s ease; }
 #thoughts .meter b.alt { background: #8a9a6a; }
 #thoughts ul { margin: 4px 0 0; padding-left: 18px; }
-@media (max-width: 560px) { #desc { font-size: 14px; } }
+#log { max-height: 36vh; min-height: 140px; overflow-y: auto; display: flex; flex-direction: column; gap: 7px; padding-right: 8px; font-family: var(--slate-face); font-size: 15px; line-height: 1.5; }
+.tx { max-width: 74ch; text-wrap: pretty; }
+.tx.place { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+.tx.place:first-child { margin-top: 0; border-top: 0; padding-top: 0; }
+.tx.desc, .tx.gm { color: var(--slate); }
+.tx.gm.no { color: #c9b08a; }
+.tx.you { color: #cfc6b1; }
+.tx.you .tag { display: inline-block; font-size: 10px; letter-spacing: .1em; padding: 0 5px; margin-right: 8px; border: 1px solid #6a5a44; color: #e0d4b8; line-height: 16px; vertical-align: 1px; }
+.tag.said { border-color: #5a6a8a; color: #b8c8e8; }
+.tag.thought { border-style: dashed; color: #a8a090; }
+.tx.you.considered { opacity: .55; }
+.tx.npc { color: #fbf6e8; }
+.tx.npc b { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #d9cfb8; }
+.tx.think { color: #a8a090; font-style: italic; border-left: 2px solid #3a342c; padding-left: 10px; }
+.tx.event { color: #e8b48a; }
+.tx.phone { color: #b8c8e8; cursor: pointer; }
+.tx.phone b { font-weight: 400; color: #8995ab; }
+.tx.phone:hover { color: #dce6ff; }
+.tx.sys { color: var(--dim); font-size: 13px; }
+.tx.mind { color: #d8c49a; font-size: 13px; }
+.tx.prompt { color: #f0d0a8; border: 1px dashed #6a5a44; padding: 8px 10px; }
+.tx .btns { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+#here { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+#here .lbl, #sheet .head { font-family: var(--slate-face); font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; margin-right: 2px; }
+#here .instruments { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+#cmd { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; }
+#modes { display: flex; }
+#modes button { border-right-width: 0; }
+#modes button:last-child { border-right-width: 1px; }
+#cmd input { flex: 1; min-width: 180px; background: transparent; color: var(--slate); border: 1px solid #3a342c; padding: 9px 12px; font-family: var(--slate-face); font-size: 15px; }
+#cmd input:focus { outline: none; border-color: var(--rust); }
+.badge.warn { background: var(--rust); }
+#sheet {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 8; width: min(440px, calc(100vw - 32px)); max-height: calc(100% - 32px); overflow: auto;
+  background: var(--paper); color: var(--ink); padding: 16px; box-sizing: border-box; box-shadow: 0 10px 50px rgba(0,0,0,.6); font-family: var(--slate-face);
+}
+#sheet header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+#sheet h2 { margin: 0; font-size: 18px; letter-spacing: .04em; text-transform: uppercase; }
+#sheet button { color: var(--ink); border-color: #9a8e74; }
+#sheet #sheet-body { display: flex; flex-direction: column; gap: 6px; }
+#sheet .row { font-size: 14px; }
+#sheet .row.dim { color: #6a6050; }
+#sheet .head { margin-top: 10px; color: #6a6050; }
+#sheet .plan { color: #4a5a2a; font-size: 13px; }
+#sheet .done { color: #8a8070; text-decoration: line-through; font-size: 13px; }
+#sheet button.need { text-align: left; border-style: dashed; }
+#sheet button.need.soon { border-color: var(--rust); color: #7a3010; }
+@media (max-width: 560px) { #log { font-size: 14px; max-height: 44vh; } #here .instruments { margin-left: 0; } }
 @media (prefers-reduced-motion: reduce) { .typing i { animation: none; } }
 </style>
 
@@ -167,18 +214,16 @@ button[aria-pressed="true"] { color: var(--slate); border-color: var(--rust); }
   </div>
 </div>
 <section class="col" id="panel">
-  <div id="desc" aria-live="polite"></div>
-  <div id="mind" hidden></div>
-  <div id="acts"></div>
-  <form id="say" hidden>
-    <input id="line" type="text" autocomplete="off" placeholder="Say something" aria-label="What you say">
-    <button id="say-btn" type="submit" class="primary" disabled>Say it</button>
-    <button id="step-away" type="button">Step away</button>
-  </form>
-  <form id="do" hidden>
-    <input id="act" type="text" autocomplete="off" placeholder="What do you do? e.g. pack her a turkey sandwich, no crusts" aria-label="What you do">
-    <button id="do-btn" type="submit" class="primary" disabled>Do it</button>
-    <button id="do-cancel" type="button">Never mind</button>
+  <div id="log" aria-live="polite"></div>
+  <div id="here"></div>
+  <form id="cmd" autocomplete="off">
+    <div id="modes" role="group" aria-label="What kind of move">
+      <button type="button" data-mode="say" aria-pressed="false" title="Talk to someone here (or start with a quote mark)">Say</button>
+      <button type="button" data-mode="do" aria-pressed="true" title="Do something in the world">Do</button>
+      <button type="button" data-mode="think" aria-pressed="false" title="Think it over. No time passes (or start with ?)">Think</button>
+    </div>
+    <input id="line" type="text" aria-label="Your move">
+    <button id="go" type="submit" class="primary">Do</button>
   </form>
   <div id="note" aria-live="polite"></div>
 </section>
@@ -209,6 +254,10 @@ button[aria-pressed="true"] { color: var(--slate); border-color: var(--rust); }
   <div id="map-list"></div>
 </div>
 <div id="thoughts" hidden></div>
+<div id="sheet" hidden role="dialog" aria-labelledby="sheet-title">
+  <header><h2 id="sheet-title"></h2><button id="sheet-close">Close</button></header>
+  <div id="sheet-body"></div>
+</div>
 
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
@@ -1185,7 +1234,12 @@ function freshWorld() {
       priya: { id: 'priya', name: 'Priya', hasNumber: true, regard: 55, company: 30, memories: [], facts: [], look: { skin: 'brown', hair: 'black', top: 'navy' },
         bio: 'Priya, the player\'s manager at Slack. 39, sharp, decent, overextended, under pressure from her own boss about AI features. Likes the player but has started to wonder if they still want this job. Texts in full sentences.' },
     },
-    needs: [], plans: [], kidsAt: null,
+    needs: [], plans: [], kidsAt: null, transcript: [],
+    objects: {
+      wallet: { id: 'wallet', name: 'wallet', at: 'player', where: '' }, keys: { id: 'keys', name: 'keys', at: 'player', where: '' }, clipper: { id: 'clipper', name: 'Clipper card', at: 'player', where: '' },
+      slips: { id: 'slips', name: 'permission slips (aquarium field trip)', at: 'home', where: 'on the kitchen counter' },
+      backpacks: { id: 'backpacks', name: "the kids' backpacks", at: 'home', where: 'by the door' },
+    },
     texts: { wife: [], dev: [{ me: false, text: 'musée mécanique. trust me. bring quarters', at: 'Saturday' }] },
     unread: {},
   };
@@ -1278,7 +1332,7 @@ function addNeed(text, by, from, kind) {
   text = String(text || '').trim().slice(0, 110); if (!text) return;
   if (S.needs.some(n => n.status === 'open' && n.text.toLowerCase() === text.toLowerCase())) return;
   S.needs.push({ id: newId('n'), text, by: by ?? null, from: from || null, kind: kind || 'task', status: 'open' });
-  toast('On your mind', text + (by ? ` · by ${fmt(by)}` : ''));
+  tx('mind', 'On your mind: ' + text + (by ? ` · by ${fmtAp(by)}` : '')); renderActs();
 }
 function meetNeeds(ids, how) {
   for (const id of Array.isArray(ids) ? ids : []) {
@@ -1322,7 +1376,7 @@ function checkWorld(from, to) {
       if (S.scene) {
         const leaving = S.scene.present.filter(x => p.who.includes(x.id));
         if (talking && p.who.includes(talking)) endTalk('They had somewhere to be.');
-        if (leaving.length) { S.scene.present = S.scene.present.filter(x => !p.who.includes(x.id)); S.scene.event = `${leaving.map(x => S.people[x.id].name).join(' and ')} head${leaving.length > 1 ? '' : 's'} out${p.to ? ' for ' + PLACES[p.to].name : ''}.`.replace(/ and Your /, ' and your '); placeFigures(); renderDesc(); renderActs(); }
+        if (leaving.length) { S.scene.present = S.scene.present.filter(x => !p.who.includes(x.id)); tx('event', `${leaving.map(x => S.people[x.id].name).join(' and ')} head${leaving.length > 1 ? '' : 's'} out${p.to ? ' for ' + PLACES[p.to].name : ''}.`.replace(/ and Your /, ' and your ')); placeFigures(); renderActs(); }
       }
     }
     if (p.status === 'underway' && p.until <= to) { p.status = 'resolving'; worldQueue.push({ kind: 'plan', item: p }); }
@@ -1373,56 +1427,264 @@ Reply with ONLY one JSON object:
       meetNeeds(r?.needs_met);
       if (r?.new_need?.text) addNeed(r.new_need.text, parseClock(r.new_need.by), null, 'task');
       if (r?.text?.from && S.people[r.text.from] && r.text.text) { S.people[r.text.from].hasNumber = true; textFrom(r.text.from, String(r.text.text)); }
-      else toast(kind === 'plan' ? 'Meanwhile' : 'Too late', outcome);
-      if (S.scene && S.scene.place === S.place) { S.scene.event = outcome; renderDesc(); }
+      tx('event', (kind === 'plan' ? 'Meanwhile: ' : 'Too late: ') + outcome); applyObjects(r);
       renderMind(); renderActs(); save();
     }
   } finally { flushingWorld = false; }
 }
 
-/* ---------- "Do something…": you say what you do, the director referees ---------- */
-let doBusy = false;
-function openDo(prefill) {
-  if (talking) endTalk();
-  $('do').hidden = false; $('acts').hidden = true; $('act').value = prefill || ''; $('act').focus();
-  $('do-btn').disabled = !$('act').value.trim();
+/* ---------- the transcript: one stream, in the order things happened ---------- */
+function tx(k, text, o = {}) {
+  if (!text) return null;
+  const e = { k, text: String(text), who: o.who || null, tag: o.tag || null, m: S.min, d: S.day };
+  if (!o.ephemeral) { S.transcript.push(e); if (S.transcript.length > 140) S.transcript.splice(0, S.transcript.length - 140); }
+  const el = txEl(e, o); $('log').append(el); $('log').scrollTop = $('log').scrollHeight;
+  return el;
 }
-function closeDo() { $('do').hidden = true; $('acts').hidden = false; }
+function txEl(e, o = {}) {
+  const el = document.createElement('div'); el.className = 'tx ' + e.k;
+  if (e.k === 'you') { const t = document.createElement('span'); t.className = 'tag ' + (e.tag || '').toLowerCase(); t.textContent = e.tag; el.append(t, document.createTextNode(e.text)); }
+  else if (e.k === 'npc') { const w = document.createElement('b'); w.textContent = e.who; el.append(w, document.createTextNode(' “' + e.text + '”')); }
+  else if (e.k === 'phone') { const w = document.createElement('b'); w.textContent = '▯ ' + e.who; el.append(w, document.createTextNode(' ' + e.text)); el.classList.add('link'); el.onclick = () => openPhone(o.phoneId || null); }
+  else el.textContent = e.text;
+  if (o.buttons) {
+    const row = document.createElement('div'); row.className = 'btns';
+    for (const [label, fn, primary] of o.buttons) row.append(btn(label, () => { row.remove(); fn(); }, primary ? 'primary' : ''));
+    el.append(row);
+  }
+  return el;
+}
+function renderLog() { $('log').replaceChildren(...S.transcript.map(e => txEl(e))); $('log').scrollTop = 1e9; }
+// A question the game puts to you, in the stream. Resolves with the value of the button you pick.
+function promptTx(text, buttons) {
+  return new Promise(res => tx('prompt', text, { ephemeral: true, buttons: buttons.map(([label, v, primary]) => [label, () => { tx('sys', label + '.'); res(v); }, primary]) }));
+}
+function toast(from, text, onClick) {
+  const id = Object.values(S.people).find(p => p.name === from)?.id;
+  tx('phone', text.length > 160 ? text.slice(0, 157) + '…' : text, { who: from, phoneId: id });
+}
+function note(text) { tx('event', text); }
+
+/* ---------- the one input line: Say / Do / Think ---------- */
+let mode = 'do', target = null, busy = false;
+const presentIds = () => (S.scene?.present || []).map(p => p.id).filter(id => S.people[id]);
+function setMode(m, t) {
+  mode = m;
+  if (m === 'say') { target = t !== undefined ? t : (target && presentIds().includes(target) ? target : (presentIds().length === 1 ? presentIds()[0] : null)); }
+  setFocus(m === 'say' ? target : null); talking = m === 'say' ? target : null;
+  renderCmd(); renderActs(); if (!busy) $('line').focus();
+}
+function renderCmd() {
+  document.querySelectorAll('#modes button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === mode));
+  const tName = target && S.people[target]?.name;
+  $('line').placeholder = {
+    say: tName ? `What do you say to ${tName.replace(/^Your /, 'your ')}?` : 'Pick someone below, then say something',
+    do: 'What do you do?  e.g. put the slips in their backpacks',
+    think: 'Ask yourself anything. No time passes.  e.g. is there turkey in the fridge?',
+  }[mode];
+  $('go').textContent = { say: 'Say', do: 'Do', think: 'Think' }[mode];
+}
+function setBusy(on, text) {
+  busy = on; $('line').disabled = on; $('go').disabled = on;
+  document.querySelectorAll('#modes button, #here button').forEach(b => b.disabled = on);
+  if (on && text) tx('sys', text, { ephemeral: true });
+  if (!on) $('line').focus();
+}
+async function submitLine(raw) {
+  let v = raw.trim(), m = mode; if (!v || busy) return;
+  if (v.startsWith('?')) { m = 'think'; v = v.slice(1).trim(); }
+  else if (/^["“]/.test(v)) { m = 'say'; v = v.replace(/^["“]\s*|\s*["”]$/g, ''); }
+  $('line').value = ''; $('note').textContent = ''; renderCmd();
+  if (m === 'say') {
+    const t = target && presentIds().includes(target) ? target : (presentIds().length === 1 ? presentIds()[0] : null);
+    if (!t) { $('line').value = raw; $('note').textContent = presentIds().length ? 'Pick who you are talking to.' : "There's no one here to talk to. You could text someone."; return; }
+    target = t; return sayTo(t, v);
+  }
+  if (m === 'think') return think(v);
+  return doAction(v);
+}
+
+/* ---------- saying things to people ---------- */
+let talking = null, talkCtl = null;
+function endTalk(why) {
+  if (talking && S.people[talking]) logIt(`Talked with ${S.people[talking].name}.${why ? ' ' + why : ''}`);
+  talkCtl?.abort(); talking = null; target = null; setFocus(null);
+  if (mode === 'say') mode = 'do';
+  $('subs').hidden = true; renderCmd(); renderActs(); save();
+}
+async function sayTo(id, text) {
+  const p = S.people[id]; if (!p) return;
+  talking = id; setFocus(id); p.talk ||= []; p.met = true;
+  const pres = S.scene?.present?.find(x => x.id === id);
+  if (pres?.says) { p.talk.push({ me: false, text: pres.says }); pres.says = null; }
+  setBusy(true);
+  tx('you', `“${text}”  — to ${p.name.replace(/^Your /, 'your ')}`, { tag: 'SAID' });
+  p.talk.push({ me: true, text }); showSub(text, 'you', true);
+  const tr = p.talk.slice(-14).map(t => (t.me ? 'PLAYER: ' : 'YOU: ') + t.text).join('\n');
+  talkCtl = new AbortController();
+  const r = await ask(personPrompt(p, 'talk', tr), talkCtl);
+  if (!r) { p.talk.pop(); setBusy(false); $('note').textContent = lastErr; return; }
+  applyFeelings(p, r);
+  const fig = figures.get(p.id);
+  if (fig && r.gesture && GESTURES[r.gesture]) { fig.gesture = r.gesture; fig.gestureUntil = performance.now() / 1000 + 3.5; }
+  if (fig) fig.base = fig.kind === 'sit' ? (p.regard < 42 ? 'guarded' : p.regard > 72 ? 'open' : 'neutral') : (p.regard < 40 ? 'guarded' : fig.child ? 'child' : 'stand');
+  const lines = (Array.isArray(r.lines) ? r.lines : []).map(String).filter(l => l.trim()).slice(0, 3);
+  await wait(400);
+  if (!lines.length) { tx('event', `${p.name} doesn't answer.`); }
+  for (const l of lines) {
+    if (fig) fig.talk = 1; showSub(l, p.name); tx('npc', l, { who: p.name }); p.talk.push({ me: false, text: l });
+    await wait(Math.min(4800, 900 + l.length * 50)); if (fig) fig.talk = 0; await wait(150);
+  }
+  setBusy(false);
+  offerDeals(r, p.id);                              // anything that sounded settled gets confirmed by you, not assumed
+  advance(2);
+  if (r.leaves && S.scene) {
+    if (!p.fam) S.scene.present = S.scene.present.filter(x => x.id !== p.id);
+    tx('event', `${p.name} ${p.fam ? 'wanders off' : 'goes'}.`); endTalk(''); placeFigures();
+  }
+  save(); await flushCards();
+}
+// Agreements wait for your yes; requests and checked-off needs apply as they come.
+function offerDeals(r, fromId) {
+  const ags = (Array.isArray(r?.agreements) ? r.agreements : []).slice(0, 2).filter(a => a?.what);
+  const rest = { ...r, agreements: [] }; applyDeals(rest, fromId);
+  if (!ags.length) return;
+  const line = ags.map(a => {
+    const who = (Array.isArray(a.who) ? a.who : [a.who]).map(x => nameOf(String(x).toLowerCase())).join(' and ').replace(/\bYour /g, 'your ');
+    const at = parseClock(a.at);
+    return `${who}: ${a.what}${at ? ', ' + fmtAp(at) : ''}`;
+  }).join(' · ');
+  promptTx(`Sounds settled — ${line}.`, [["That's the deal", true, true], ['No, we were just talking', false]]).then(yes => {
+    if (yes) { for (const a of ags) addPlan(a, fromId); renderMind(); save(); }
+  });
+}
+
+/* ---------- doing things: the director referees, and asks first if it's a big one ---------- */
+function clashes(from, to) {
+  const out = [];
+  for (const ev of CLOCK) if ((ev.id === 'mtg1' || ev.id === 'mtg2') && isWeekday(S.day) && !S.flags[ev.id + ':' + S.day] && ev.at > from && ev.at < to) out.push(`you'd be in the middle of it at ${fmtAp(ev.at)}, when your ${ev.id === 'mtg1' ? 'roadmap sync' : '1:1 with Priya'} starts`);
+  for (const n of S.needs) if (n.status === 'open' && n.by != null && n.by > from && n.by <= to) out.push(`“${n.text}” is due by ${fmtAp(n.by)}`);
+  return out;
+}
 async function doAction(text) {
-  if (doBusy) return; doBusy = true; $('do-btn').disabled = true; $('note').textContent = '';
-  closeDo(); setBusy(true, `You: ${text}`);
+  setBusy(true);
+  const you = tx('you', text, { tag: 'DID' });
   const r = await direct('act', text);
-  doBusy = false;
-  if (!r) { setBusy(false); renderDesc(); renderActs(); $('note').textContent = lastErr; return; }
+  if (!r) { setBusy(false); you.querySelector('.tag').textContent = 'TRIED'; $('note').textContent = lastErr; return; }
+  const can = r.possible !== false, mins = can ? Math.max(1, Math.min(240, Math.round(Number(r.minutes) || 5))) : 1;
+  const clash = can ? clashes(S.min, S.min + mins) : [];
+  if (can && (mins >= 20 || clash.length)) {
+    const ok = await promptTx(`That would take about ${mins} minutes${clash.length ? ', and ' + clash.join('; ') : ''}.`, [['Do it', true, true], ['Not yet', false]]);
+    if (!ok) { you.querySelector('.tag').textContent = 'CONSIDERED'; you.classList.add('considered'); setBusy(false); return; }
+  }
+  if (!can) { you.querySelector('.tag').textContent = 'TRIED'; you.classList.add('considered'); }
   applyScene(r, 'act');
-  S.scene.closer = (r.possible === false ? '' : '') + String(r.description || '').trim();
-  const mins = r.possible === false ? 1 : Math.max(1, Math.min(240, Number(r.minutes) || 5));
-  advance(mins); S.energy = clamp(S.energy + (Number(r.energy) || 0), S.energy);
-  logIt(`${r.possible === false ? 'Tried to' : 'Did:'} ${text.slice(0, 80)}. ${String(r.description || '').slice(0, 100)}`);
-  placeFigures(); setBusy(false); renderDesc(); renderActs(); save();
-  if (PLACE_IDS.includes(r.go_to) && r.go_to !== S.place) { await wait(1500); await goTo(r.go_to); return; }
+  tx(can ? 'gm' : 'gm no', String(r.description || (can ? 'Done.' : "You can't, here and now.")).trim());
+  advance(mins); S.energy = clamp(S.energy + (Number(r.energy) || 0), S.energy); hud();
+  logIt(`${can ? 'Did' : 'Tried to'}: ${text.slice(0, 80)}. ${String(r.description || '').slice(0, 100)}`);
+  placeFigures(); setBusy(false); renderActs(); save();
+  if (can && (r.sleep === 'bed' || r.sleep === 'nap') && S.place === 'home') { await wait(1200); return rest(r.sleep === 'bed' ? 8 : 1); }
+  if (can && PLACE_IDS.includes(r.go_to) && r.go_to !== S.place) { await wait(1200); return goTo(r.go_to); }
   await flushCards();
 }
 
-/* ---------- on your mind ---------- */
-function renderMind() {
-  const el = $('mind'); el.replaceChildren();
-  const open = S.needs.filter(n => n.status === 'open').sort((a, b) => (a.by ?? 1e9) - (b.by ?? 1e9));
-  const plans = S.plans.filter(p => p.status === 'pending' || p.status === 'underway');
-  const recent = S.needs.filter(n => n.status === 'met' && n.doneDay !== -1).slice(-2);
-  if (!open.length && !plans.length) { el.hidden = true; return; }
-  el.hidden = false;
-  const h = document.createElement('span'); h.className = 'lbl'; h.textContent = 'On your mind'; el.append(h);
-  for (const n of open) {
-    const b = document.createElement('button'); b.className = 'need' + (n.by && n.by - S.min < 30 ? ' soon' : '');
-    b.textContent = n.text + (n.by ? ` · by ${fmtAp(n.by)}` : '') + (n.from ? ` · ${nameOf(n.from).replace(/^Your /, '')}` : '');
-    b.title = 'Do something about this'; b.onclick = () => openDo(n.text); el.append(b);
+/* ---------- thinking: free, private, changes nothing ---------- */
+async function think(text) {
+  setBusy(true);
+  tx('you', text, { tag: 'THOUGHT' });
+  const r = await direct('think', text);
+  setBusy(false);
+  if (!r) { $('note').textContent = lastErr; return; }
+  applyObjects(r);
+  tx('think', String(r.answer || r.description || "You're not sure.").trim()); save();
+  if (mode === 'think') { mode = 'do'; renderCmd(); }                 // a thought is a moment, not a state
+}
+
+/* ---------- things: where every object that matters actually is ---------- */
+function applyObjects(r) {
+  for (const o of (Array.isArray(r?.objects) ? r.objects : []).slice(0, 5)) {
+    const id = String(o.id || o.name || '').toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 30); if (!id) continue;
+    const at = String(o.at || 'here').toLowerCase();
+    if (at === 'gone') { delete S.objects[id]; continue; }
+    const loc = at === 'here' ? S.place : at === 'player' ? 'player' : S.people[at] ? 'person:' + at : PLACE_IDS.includes(at) ? at : S.objects[at] ? 'in:' + at : S.place;
+    S.objects[id] = { id, name: String(o.name || S.objects[id]?.name || id).slice(0, 50), at: loc, where: o.where ? String(o.where).slice(0, 60) : (S.objects[id]?.at === loc ? S.objects[id]?.where : '') };
   }
-  for (const p of plans) {
-    const s = document.createElement('span'); s.className = 'plan';
-    s.textContent = `${p.who.map(nameOf).join(' & ').replace(/ & Your /g, ' & your ')}: ${p.what} · ${p.status === 'pending' ? fmtAp(p.at) : 'under way'}`; el.append(s);
-  }
-  void recent;
+}
+// Where something ultimately is: inside the backpack that's by the door is still by the door.
+function rootAt(o, depth = 0) { return o.at.startsWith('in:') && S.objects[o.at.slice(3)] && depth < 5 ? rootAt(S.objects[o.at.slice(3)], depth + 1) : o.at; }
+function whereText(o) {
+  if (o.at === 'player') return 'carried by the player';
+  if (o.at.startsWith('person:')) return 'with ' + nameOf(o.at.slice(7));
+  if (o.at.startsWith('in:')) return 'inside ' + (S.objects[o.at.slice(3)]?.name || 'something');
+  return (PLACES[o.at]?.name || o.at) + (o.where ? ', ' + o.where : '');
+}
+function objectsText() {
+  const list = Object.values(S.objects);
+  if (!list.length) return 'Known objects: none yet.';
+  return `Known objects (FACTS: never contradict these; never put an object anywhere but where it is listed):\n${list.map(o => `- [${o.id}] ${o.name}: ${whereText(o)}`).join('\n')}`;
+}
+
+/* ---------- what's around you: people here, and your instruments ---------- */
+function renderActs() {
+  renderMind();
+  const a = $('here'); a.replaceChildren();
+  const ppl = (S.scene?.present || []).filter(p => S.people[p.id]);
+  if (ppl.length) {
+    a.append(lbl('Here'));
+    for (const p of ppl) {
+      const per = S.people[p.id], b = btn(per.name + (p.doing && !per.fam ? ` · ${p.doing}` : ''), () => setMode('say', p.id), 'person');
+      b.title = `Talk to ${per.name}`; if (mode === 'say' && target === p.id) b.setAttribute('aria-pressed', 'true'); a.append(b);
+    }
+  } else a.append(lbl('Nobody you know is around'));
+  const ins = document.createElement('span'); ins.className = 'instruments';
+  ins.append(btn('Map', openMap));
+  const unread = Object.values(S.unread).reduce((x, y) => x + y, 0);
+  const pb = btn('Phone', () => openPhone()); if (unread) { const u = document.createElement('span'); u.className = 'badge'; u.textContent = unread; pb.append(u); } ins.append(pb);
+  ins.append(btn('Pockets', openPockets));
+  const open = S.needs.filter(n => n.status === 'open'), soon = open.some(n => n.by != null && n.by - S.min < 30);
+  const mb = btn('On your mind', openMind); if (open.length) { const u = document.createElement('span'); u.className = 'badge' + (soon ? ' warn' : ''); u.textContent = open.length; mb.append(u); } ins.append(mb);
+  if (S.place === 'home' && (S.min >= 20 * 60 || S.energy < 15)) ins.append(btn('Go to bed', () => rest(8)));
+  a.append(ins);
+  if (busy) a.querySelectorAll('button').forEach(b => b.disabled = true);
+}
+function renderDesc() { }
+function renderMind() { }
+
+/* ---------- small sheets: pockets, on your mind ---------- */
+function sheet(title, build) {
+  closeMap(); closePhone(); $('scrim').hidden = false; $('sheet').hidden = false;
+  $('sheet-title').textContent = title; const body = $('sheet-body'); body.replaceChildren(); build(body);
+  $('sheet-close').focus();
+}
+function closeSheet() { $('sheet').hidden = true; if ($('phone').hidden && $('mapbox').hidden) $('scrim').hidden = true; }
+function li(text, cls) { const d = document.createElement('div'); d.className = 'row ' + (cls || ''); d.textContent = text; return d; }
+function openPockets() {
+  sheet('Pockets', body => {
+    const mine = Object.values(S.objects).filter(o => o.at === 'player');
+    body.append(li(`Phone · $${S.balance.toLocaleString()} in checking`, 'dim'));
+    if (!mine.length) body.append(li('Nothing else.', 'dim'));
+    for (const o of mine) body.append(li(o.name));
+    const near = Object.values(S.objects).filter(o => rootAt(o) === S.place);
+    if (near.length) { body.append(li('Here', 'head')); for (const o of near) body.append(li(o.name + (o.at.startsWith('in:') ? ' · ' + whereText(o) : o.where ? ' · ' + o.where : ''), 'dim')); }
+    const away = Object.values(S.objects).filter(o => o.at !== 'player' && rootAt(o) !== S.place && rootAt(o) !== 'player');
+    if (away.length) { body.append(li('Elsewhere', 'head')); for (const o of away) body.append(li(`${o.name} · ${whereText(o)}`, 'dim')); }
+  });
+}
+function openMind() {
+  sheet('On your mind', body => {
+    const open = S.needs.filter(n => n.status === 'open').sort((a, b) => (a.by ?? 1e9) - (b.by ?? 1e9));
+    if (!open.length) body.append(li('Nothing pressing.', 'dim'));
+    for (const n of open) {
+      const b = btn(n.text + (n.by ? ` · by ${fmtAp(n.by)}` : '') + (n.from ? ` · ${nameOf(n.from).replace(/^Your /, '')}` : ''), () => { closeSheet(); setMode('do'); $('line').value = n.text; $('line').focus(); }, 'need' + (n.by != null && n.by - S.min < 30 ? ' soon' : ''));
+      body.append(b);
+    }
+    const plans = S.plans.filter(p => p.status === 'pending' || p.status === 'underway');
+    if (plans.length) { body.append(li('In motion', 'head')); for (const p of plans) body.append(li(`${p.who.map(nameOf).join(' & ').replace(/ & Your /g, ' & your ')}: ${p.what} · ${p.status === 'pending' ? fmtAp(p.at) : 'under way'}`, 'plan')); }
+    const done = S.needs.filter(n => n.status === 'met').slice(-4);
+    if (done.length) { body.append(li('Done', 'head')); for (const n of done) body.append(li(n.text, 'done')); }
+    const missed = S.needs.filter(n => n.status === 'missed').slice(-3);
+    if (missed.length) { body.append(li('Missed', 'head')); for (const n of missed) body.append(li(n.text, 'done')); }
+  });
 }
 
 // Things that happen at set times. Each fires once per day.
@@ -1453,7 +1715,6 @@ function advance(mins, walking) {
 function meeting(title, id) { pendingCards.push({ kind: 'meeting', title, id, min: S.min }); }
 function logIt(text) { S.log.push({ d: S.day, m: S.min, text }); }
 function remember(id, text) { const p = S.people[id]; if (p && text && !p.memories.includes(text)) p.memories.push(text); }
-function note(text) { S.scene && (S.scene.event = text); renderDesc(); }
 
 /* ---------- people records ---------- */
 function ensurePerson(e) {
@@ -1476,7 +1737,8 @@ Player energy: ${Math.round(S.energy)}/100. Spent today: $${S.spent}.
 Recent events (oldest first):
 ${S.log.slice(-10).map(l => `- day ${l.d} ${fmt(l.m)}: ${l.text}`).join('\n') || '- (nothing yet today)'}
 Open loose ends: ${S.threads.length ? S.threads.join('; ') : 'none'}.
-${ledgerText()}`;
+${ledgerText()}
+${objectsText()}`;
 }
 
 /* ---------- the director ---------- */
@@ -1494,7 +1756,6 @@ RULES
 const DIRECTOR_FORMAT = `Reply with ONLY one JSON object:
 {"description": "what the player sees, hears and smells right now; 2 to 4 sentences, under 75 words",
  "present": [0 to 4 people here, each {"id": known id or a new slug, "name": "their name if known, else a short description", "who": "for new people only: private one-line truth about them", "doing": "what they're doing, a few words", "pose": "stand" or "sit" or "phone", "says": null or a line they say to the player unprompted, "look": {"skin": "light|medium|tan|brown|dark", "hair": "black|brown|blond|gray|white|red|bald", "top": "a plain color word", "glasses": true|false, "age": "child|young|adult|older", "build": "slim|average|big"}}],
- "details": [0 to 3 small things the player could look at more closely, each {"id": "slug", "label": "a few words"}],
  "event": null or one sentence of something that just happened,
  "minutes": how many minutes this took (0 for arriving),
  "spend": dollars the player spent (0 unless they bought something),
@@ -1506,7 +1767,10 @@ const DIRECTOR_FORMAT = `Reply with ONLY one JSON object:
  "remembers": [0 to 2 {"id": "person id", "text": "a few words they will remember"}],
  "possible": true, or false if the player tried something that can't be done here and now (say why in description),
  "go_to": null, or a place id if the player's action means going somewhere else,
- "energy": change in the player's energy, usually 0}`;
+ "energy": change in the player's energy, usually 0,
+ "objects": [0 to 5 objects that matter whose existence or location is established or changed by this, each {"id": "known id or a new slug", "name": "short", "at": "here" or "player" or a person id or a place id or an object id (inside it) or "gone", "where": "short detail, e.g. 'on the kitchen counter'"}],
+ "sleep": null, or "bed" if the player is going to bed for the night (only at home), or "nap" if lying down to rest}
+Objects listed as facts are facts. If something moved, report it in objects; if it isn't listed, you may establish it.`;
 
 async function direct(kind, extra = '') {
   const here = familyHere(S.place).map(id => S.people[id].name).join(', ');
@@ -1516,7 +1780,8 @@ async function direct(kind, extra = '') {
     linger: 'The player hangs around here for about 30 minutes. Say what changes: who leaves, who arrives, what happens. Set minutes to about 30.',
     look: `The player looks more closely at: ${extra}. Describe what they find in 1 to 3 sentences in "description" (it is added to the scene, so do not repeat the scene). Keep everyone currently here in "present". Set minutes to about 5.`,
     wake: 'It is the start of a new day and the player has just woken up at home. Describe the morning.',
-    act: `The player does this: "${extra}". You are the game master. Decide whether it can be done here and now (the place, the hour, what's at hand, money, who's around), how long it takes, and what happens. Small ordinary actions simply succeed; be fair, concrete and realistic, never preachy. If it can't be done, set possible to false and say why in "description" (it is added to the scene, so don't repeat the scene). If it settles an open need, list that need's id in needs_met. Keep everyone currently here in "present" unless the action changes that. If the action means travelling somewhere, set go_to and keep the description to the moment of leaving.`,
+    think: `The player is THINKING, not acting: "${extra}". Answer from the player's own knowledge, memory and judgment, in 1 to 3 plain sentences, second person ("You remember…", "Probably…"). Use what the player would know or could reasonably guess. If it is a fact about the world that hasn't been established (what's in the fridge), decide it and record it in objects. Nothing happens and no time passes.`,
+    act: `The player does this: "${extra}". You are the game master. Decide whether it can be done here and now (the place, the hour, what's at hand, money, who's around), how long it takes, and what happens. Small ordinary actions simply succeed; be fair, concrete and realistic, never preachy. If it can't be done, set possible to false and say why in "description" (it is added to the scene, so don't repeat the scene). If it settles an open need, list that need's id in needs_met. Keep everyone currently here in "present" unless the action changes that. If the action moves or uses up an object, report it in objects. If the action means travelling somewhere, set go_to and keep the description to the moment of leaving. If it means going to bed or lying down at home, set sleep.`,
   }[kind];
   const prompt = `${DIRECTOR}
 
@@ -1530,7 +1795,7 @@ ${rosterText()}
 TASK
 ${task}
 
-${DIRECTOR_FORMAT}`;
+${kind === 'think' ? 'Reply with ONLY one JSON object: {"answer": "1 to 3 sentences", "objects": [0 to 3 objects you established, same shape as always: {"id","name","at","where"}]}' : DIRECTOR_FORMAT}`;
   return await ask(prompt);
 }
 const FALLBACK = {
@@ -1542,35 +1807,35 @@ const FALLBACK = {
   tide: 'Red neon, a jukebox nobody is choosing songs on, two regulars at the bar who have clearly been here a while.',
 };
 function applyScene(r, kind) {
-  const keep = (kind === 'look' || kind === 'act') && S.scene ? S.scene : null;
-  const present = [];
-  const forced = familyHere(S.place);
-  for (const e of (Array.isArray(r?.present) ? r.present : []).slice(0, 4)) {
+  const present = [], forced = familyHere(S.place);
+  const fromModel = Array.isArray(r?.present) && r.present.length > 0;
+  for (const e of (fromModel ? r.present : []).slice(0, 4)) {
     const id = String(e.id || '').toLowerCase();
     const known = S.people[id];
     if (known?.fam && !forced.includes(id)) continue;                          // family can't be in two places
     if (['priya', 'school', 'halcyon'].includes(id)) continue;
+    if (S.plans.some(pl => pl.status === 'underway' && pl.who.includes(id))) continue;   // people out doing what they agreed to are not here
     const p = ensurePerson(e); if (!p) continue;
     if (!known && e.look) p.look = e.look;
     present.push({ id: p.id, doing: String(e.doing || '').slice(0, 80), pose: ['stand', 'sit', 'phone'].includes(e.pose) ? e.pose : 'stand', says: e.says ? String(e.says).slice(0, 200) : null });
   }
   for (const id of forced) if (!present.find(p => p.id === id)) present.push({ id, doing: 'here', pose: 'stand', says: null });
-  if (keep) {
-    keep.closer = String(r?.description || '').trim(); keep.event = r?.event ? String(r.event) : keep.event;
-    if (present.length) keep.present = present;
-    S.scene = keep;
-  } else {
-    S.scene = { place: S.place, desc: String(r?.description || FALLBACK[S.place]).trim(), present, details: [], event: r?.event ? String(r.event) : null, closer: null };
+  if (kind === 'act' && S.scene) { if (fromModel) S.scene.present = present; else S.scene.present = S.scene.present.filter(p => !S.people[p.id]?.fam || forced.includes(p.id)); }
+  else {
+    S.scene = { place: S.place, desc: String(r?.description || FALLBACK[S.place]).trim(), present };
+    tx('place', `${PLACES[S.place].name} · ${weekday(S.day)}, ${fmt(S.min)}`);
+    tx('desc', S.scene.desc);
   }
-  const dets = Array.isArray(r?.details) ? r.details.slice(0, 3).map(d => ({ id: String(d.id || d.label || '').slice(0, 30), label: String(d.label || d.id || '').slice(0, 60) })).filter(d => d.label) : [];
-  if ((kind !== 'look' && kind !== 'act') || dets.length) S.scene.details = dets;
+  if (r?.event) tx('event', String(r.event));
+  applyObjects(r);
   const spend = Math.max(0, Math.min(500, Number(r?.spend) || 0)); if (spend) { S.spent += spend; S.balance -= spend; if (/coffee|latte|espresso/i.test(JSON.stringify(r))) S.energy = clamp(S.energy + 10, 0); }
   if (r?.thread) { const t = String(r.thread).slice(0, 80); if (!S.threads.includes(t)) S.threads.push(t); }
   if (r?.text?.from && S.people[r.text.from]?.hasNumber && r.text.text) textFrom(r.text.from, String(r.text.text));
   for (const m of (Array.isArray(r?.remembers) ? r.remembers : []).slice(0, 2)) if (S.people[m?.id]) remember(m.id, String(m.text || '').slice(0, 80));
-  applyDeals(r, null);
-  if (kind !== 'act') logIt(`${kind === 'look' ? 'Looked at something' : kind === 'linger' ? 'Hung around' : 'Arrived'} at ${PLACES[S.place].name.replace(/\.$/, '')}. ${(r?.event || r?.description || '').slice(0, 110)}`);
-  for (const p of S.scene.present) if (p.says) { S.convo = null; }
+  offerDeals(r, null);
+  for (const p of S.scene.present) if (p.says) { tx('npc', p.says, { who: S.people[p.id]?.name || '' }); showSub(p.says, S.people[p.id]?.name || ''); }
+  if (talking && !S.scene.present.some(p => p.id === talking)) endTalk('');
+  if (kind !== 'act') logIt(`Arrived at ${PLACES[S.place].name.replace(/\.$/, '')}. ${(r?.event || r?.description || '').slice(0, 110)}`);
 }
 
 /* ---------- conversations, in person and by text ---------- */
@@ -1597,6 +1862,7 @@ RIGHT NOW
 ${weekday(S.day)}, ${fmt(S.min)}. ${mode === 'text' ? `You are wherever you would be at this hour.` : `${PLACES[S.place].name}. ${scene}${others ? ' Also here: ' + others + '.' : ''}`} ${p.fam ? kidsLine() : ''}
 ${S.flags.halcyon && (p.fam || p.id === 'dev') ? '' : ''}
 ${ledgerText()}
+The player is carrying: ${Object.values(S.objects).filter(o => o.at === 'player').map(o => o.name).join(', ') || 'nothing much'}. ${Object.values(S.objects).filter(o => o.at === 'person:' + p.id).map(o => 'You have: ' + o.name + '.').join(' ')}
 
 ${FEEL_RULES}
 
@@ -1627,57 +1893,12 @@ function applyFeelings(p, r) {
   if (typeof r?.remembers === 'string' && r.remembers.trim()) remember(p.id, r.remembers.trim().slice(0, 80));
   if (r?.name && !p.fam && p.id !== 'dev' && p.id !== 'priya') { p.name = String(r.name).slice(0, 30); }
   for (const f of (Array.isArray(r?.facts) ? r.facts : []).slice(0, 2)) { const t = String(f).slice(0, 90); if (t && !p.facts.includes(t)) p.facts.push(t); }
-  if (r?.gives_number && !p.hasNumber) { p.hasNumber = true; S.texts[p.id] ||= []; toast(p.name, 'gave you their number', () => openPhone(p.id)); logIt(`${p.name} gave the player their number.`); }
+  if (r?.gives_number && !p.hasNumber) { p.hasNumber = true; S.texts[p.id] ||= []; tx('sys', `${p.name} gave you their number.`); logIt(`${p.name} gave the player their number.`); }
   if (r?.thread) { const t = String(r.thread).slice(0, 80); if (!S.threads.includes(t)) S.threads.push(t); }
   p.note = String(r?.private_note || p.note || '');
   renderSide(p);
 }
 
-/* ---------- in person ---------- */
-let talking = null, talkBusy = false, talkCtl = null;
-function startTalk(id) {
-  const p = S.people[id]; if (!p) return;
-  talking = id; p.talk ||= []; p.met = true;
-  const pres = S.scene?.present?.find(x => x.id === id);
-  if (pres?.says) { p.talk.push({ me: false, text: pres.says }); pres.says = null; }
-  $('say').hidden = false; $('acts').hidden = true; $('line').value = ''; $('line').placeholder = `Say something to ${p.name}`; $('line').focus();
-  setFocus(id); renderSide(p); renderActs();
-  if (p.talk.length) showSub(p.talk[p.talk.length - 1].text, p.name);
-}
-function endTalk(why) {
-  if (talking) { const p = S.people[talking]; logIt(`Talked with ${p.name}.${why ? ' ' + why : ''}`); }
-  talkCtl?.abort(); talking = null; talkBusy = false; setFocus(null);
-  $('say').hidden = true; $('acts').hidden = false; $('subs').hidden = true; renderActs(); save();
-}
-async function sayLine(text) {
-  const p = S.people[talking]; if (!p || talkBusy) return;
-  talkBusy = true; $('say-btn').disabled = true; $('note').textContent = '';
-  p.talk.push({ me: true, text }); showSub(text, 'you', true);
-  const tr = p.talk.slice(-14).map(t => (t.me ? 'PLAYER: ' : 'YOU: ') + t.text).join('\n');
-  talkCtl = new AbortController();
-  const r = await ask(personPrompt(p, 'talk', tr), talkCtl);
-  if (!r) { talkBusy = false; p.talk.pop(); $('note').textContent = lastErr; $('say-btn').disabled = !$('line').value.trim(); return; }
-  applyFeelings(p, r); applyDeals(r, p.id);
-  const fig = figures.get(p.id);
-  if (fig && r.gesture && GESTURES[r.gesture]) { fig.gesture = r.gesture; fig.gestureUntil = performance.now() / 1000 + 3.5; }
-  if (fig) fig.base = fig.kind === 'sit' ? (p.regard < 42 ? 'guarded' : p.regard > 72 ? 'open' : 'neutral') : (p.regard < 40 ? 'guarded' : 'stand');
-  advance(2);
-  const lines = (Array.isArray(r.lines) ? r.lines : []).map(String).filter(l => l.trim()).slice(0, 3);
-  await wait(500);
-  if (!lines.length) { showSub('…', p.name); await wait(1600); }
-  for (const l of lines) {
-    if (talking !== p.id) break;
-    if (fig) fig.talk = 1; showSub(l, p.name); p.talk.push({ me: false, text: l });
-    await wait(Math.min(5200, 1000 + l.length * 55)); if (fig) fig.talk = 0; await wait(200);
-  }
-  talkBusy = false; $('say-btn').disabled = !$('line').value.trim();
-  if (r.leaves && talking === p.id) {
-    await wait(1200);
-    if (S.scene && !p.fam) S.scene.present = S.scene.present.filter(x => x.id !== p.id);
-    endTalk(''); placeFigures();
-  }
-  await flushCards();
-}
 function showSub(text, who, me) {
   const el = $('subs'); el.hidden = false; el.className = me ? 'me' : '';
   el.replaceChildren(); if (!me) { const w = document.createElement('span'); w.className = 'who'; w.textContent = who; el.append(w); }
@@ -1698,7 +1919,7 @@ async function aiText(id, situation) {
   const tr = (S.texts[id] || []).slice(-10).map(t => (t.me ? 'PLAYER: ' : 'YOU: ') + t.text).join('\n');
   const r = await ask(personPrompt(p, 'text', tr) + `\n\nSITUATION: ${situation} Write the text(s) you send now, unprompted.`);
   const lines = (Array.isArray(r?.lines) ? r.lines : []).map(String).filter(Boolean).slice(0, 2);
-  if (r) { applyFeelings(p, r); applyDeals(r, id); }
+  if (r) { applyFeelings(p, r); offerDeals(r, id); }
   for (const l of lines) { textFrom(id, l); await wait(1200); }
 }
 function openPhone(id) {
@@ -1739,7 +1960,7 @@ async function sendText(text) {
   const tr = S.texts[id].slice(-14).map(t => (t.me ? 'PLAYER: ' : 'YOU: ') + t.text).join('\n');
   const r = await ask(personPrompt(p, 'text', tr));
   if (!r) { rc.textContent = 'Not delivered'; S.texts[id].pop(); $('phone-note').hidden = false; $('phone-note').textContent = lastErr; textBusy = false; $('send').disabled = !$('draft').value.trim(); return; }
-  applyFeelings(p, r); applyDeals(r, id); advance(1);
+  applyFeelings(p, r); offerDeals(r, id); advance(1);
   const readAfter = Math.max(5, Math.min(900, Number(r.read_after_seconds) || 30));
   await wait(Math.min(3500, 600 + readAfter * 6));
   rc.textContent = 'Read ' + fmtShort(S.min);
@@ -1753,13 +1974,6 @@ async function sendText(text) {
 }
 
 /* ---------- toast ---------- */
-let toastTimer;
-function toast(from, text, onClick) {
-  const t = $('toast'); t.replaceChildren(); const b = document.createElement('b'); b.textContent = from; t.append(b, document.createTextNode(text.length > 120 ? text.slice(0, 117) + '…' : text));
-  t.hidden = false; t.onclick = () => { t.hidden = true; onClick?.(); };
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 6500);
-}
-
 /* ---------- cards: title, travel, meetings, sleep ---------- */
 function card(time, h, p, buttons, solid) {
   $('card').hidden = false; $('card').className = solid ? 'solid' : '';
@@ -1769,28 +1983,34 @@ function card(time, h, p, buttons, solid) {
 }
 function hideCard() { $('card').hidden = true; }
 async function flushCards() {
-  await flushWorldSoon();
+  flushWorld();
   while (pendingCards.length) {
     const c = pendingCards.shift();
-    if (c.kind === 'meeting') {
-      const late = S.min - c.min;
-      await new Promise(res => card(fmt(S.min), c.title, `${late > 5 ? `It started ${late} minutes ago. ` : ''}Your calendar buzzes. It's a video call; you can take it from wherever you are.`, [
-        ['Join from here (30 min)', () => { hideCard(); S.work = clamp(S.work + 3, 58); advance(30); logIt(`Took the ${c.title} call from ${PLACES[S.place].name}${late > 5 ? ', late' : ''}.`); if (S.place === 'beach' || S.place === 'tide' || S.kids === 'with') remember('priya', `took our ${c.title} from somewhere loud`); res(); }, true],
-        ['Skip it', () => { hideCard(); S.work = clamp(S.work - 8, 58); logIt(`Skipped ${c.title}.`); remember('priya', `skipped ${c.title}`); if (c.id === 'mtg2') setTimeout(() => aiText('priya', 'The player just skipped your 1:1 without warning. Text them about it, as their manager.'), 4000); res(); }],
-      ]));
+    if (c.kind !== 'meeting') continue;
+    const late = S.min - c.min;
+    const join = await promptTx(`Your calendar buzzes: ${c.title}, a video call${late > 5 ? `. It started ${late} minutes ago` : ''}.`, [['Join from here (30 min)', true, true], ['Skip it', false]]);
+    if (join) {
+      S.work = clamp(S.work + 3, 58); advance(30); logIt(`Took the ${c.title} call from ${PLACES[S.place].name}${late > 5 ? ', late' : ''}.`);
+      tx('event', `You take the ${c.title} on your phone${S.place === 'home' ? '' : ' at ' + PLACES[S.place].name}. Thirty minutes pass.`);
+      if (S.place === 'beach' || S.place === 'tide' || S.kids === 'with') remember('priya', `took our ${c.title} from somewhere loud`);
+    } else {
+      S.work = clamp(S.work - 8, 58); logIt(`Skipped ${c.title}.`); remember('priya', `skipped ${c.title}`);
+      if (c.id === 'mtg2') setTimeout(() => aiText('priya', 'The player just skipped your 1:1 without warning. Text them about it, as their manager.'), 4000);
     }
+    renderActs(); save();
   }
 }
 
 function flushWorldSoon() { flushWorld(); }
 /* ---------- moving around ---------- */
 async function goTo(dest) {
-  closeMap(); closePhone(); if (talking) endTalk();
+  closeMap(); closePhone(); closeSheet(); if (talking) endTalk();
   const from = S.place, tr = travel(from, dest);
   const kidsBusy = S.plans.some(p => p.status !== 'done' && kidsIn(p.who));
   if (!kidsBusy && from === 'home' && S.kids === 'home' && S.min < 15 * 60 && isWeekday(S.day) && !S.flags.dropped) S.kids = 'with';           // you can't leave a 7-year-old alone
   if (!kidsBusy && from === 'home' && S.kids === 'home' && (!isWeekday(S.day) || S.flags.dropped) && !wifeHome(S.min)) S.kids = 'with';
   const withKids = S.kids === 'with' ? ' with the kids' : '';
+  tx('sys', `${tr.how === 'N-Judah' ? 'You take the N' : 'You walk'} to ${PLACES[dest].name}${withKids}. ${tr.min} min.`);
   card(fmt(S.min), tr.how === 'N-Judah' ? `Taking the N to ${PLACES[dest].name}` : `Walking to ${PLACES[dest].name}`, `${tr.min} minutes${withKids}.${tr.fare ? ` $${tr.fare * (S.kids === 'with' ? 1 : 1)} fare.` : ''}`, [], false);
   setStage(PLACES[dest].stage, PLACES[dest].dress, true);
   S.place = dest; advance(tr.min, true);
@@ -1805,22 +2025,6 @@ async function goTo(dest) {
   applyScene(r, 'arrive'); hideCard(); placeFigures(); hud(); renderDesc(); renderActs(); save();
   await flushCards();
 }
-async function linger() {
-  setBusy(true, 'Thirty minutes pass…');
-  advance(30);
-  const r = await direct('linger');
-  applyScene(r, 'linger'); setStage(PLACES[S.place].stage, PLACES[S.place].dress); placeFigures(); setBusy(false); renderDesc(); renderActs(); save();
-  await flushCards();
-}
-async function lookAt(det) {
-  setBusy(true, 'You look closer…');
-  const r = await direct('look', det.label);
-  S.scene.details = S.scene.details.filter(d => d !== det);
-  applyScene(r, 'look'); advance(Number(r?.minutes) || 5); placeFigures(); setBusy(false); renderDesc(); renderActs(); save();
-  await flushCards();
-}
-function setBusy(on, text) { $('acts').querySelectorAll('button').forEach(b => b.disabled = on); $('mind').querySelectorAll('button').forEach(b => b.disabled = on); if (on) { $('desc').classList.add('loading'); $('desc').textContent = text; } else $('desc').classList.remove('loading'); }
-
 async function rest(hours) {
   setBusy(true, hours >= 6 ? 'You go to bed.' : 'You lie down on the sofa.');
   if (hours < 6) {
@@ -1859,34 +2063,8 @@ function hud() {
   $('hud-money').textContent = `Spent today $${S.spent}`;
   $('p-clock').textContent = fmtShort(S.min);
 }
-function renderDesc() {
-  const d = $('desc'); d.classList.remove('loading'); d.replaceChildren();
-  if (!S.scene) return;
-  d.append(document.createTextNode(S.scene.desc));
-  if (S.scene.closer) { const c = document.createElement('span'); c.className = 'closer'; c.textContent = S.scene.closer; d.append(c); }
-  if (S.scene.event) { const e = document.createElement('span'); e.className = 'event'; e.textContent = S.scene.event; d.append(e); }
-  const says = S.scene.present.find(p => p.says);
-  if (says) showSub(says.says, S.people[says.id]?.name || ''); else if (!talking) $('subs').hidden = true;
-}
 function btn(label, fn, cls) { const b = document.createElement('button'); b.textContent = label; if (cls) b.className = cls; b.onclick = fn; return b; }
 function lbl(t) { const s = document.createElement('span'); s.className = 'lbl'; s.textContent = t; return s; }
-function renderActs() {
-  renderMind();
-  const a = $('acts'); a.replaceChildren();
-  if (!S.scene) return;
-  const ppl = S.scene.present.filter(p => S.people[p.id]);
-  if (ppl.length) { a.append(lbl('Talk to')); for (const p of ppl) { const per = S.people[p.id]; a.append(btn(per.name + (p.doing && !per.fam ? ` — ${p.doing}` : ''), () => startTalk(p.id), 'person')); } a.append(sep()); }
-  if (S.scene.details?.length) { a.append(lbl('Look at')); for (const d of S.scene.details) a.append(btn(d.label, () => lookAt(d))); a.append(sep()); }
-  a.append(btn('Do something…', () => openDo(), 'primary'));
-  a.append(btn('Go somewhere…', openMap, 'primary'));
-  a.append(btn('Hang around (30 min)', linger));
-  const unread = Object.values(S.unread).reduce((x, y) => x + y, 0);
-  const pb = btn('Phone', () => openPhone()); if (unread) { const u = document.createElement('span'); u.className = 'badge'; u.textContent = unread; pb.append(u); } a.append(pb);
-  if (S.place === 'home') {
-    if (S.min >= 20 * 60 || S.energy < 15) a.append(btn('Go to bed', () => rest(8)));
-    else a.append(btn('Lie down for an hour', () => rest(1)));
-  }
-}
 function sep() { const s = document.createElement('span'); s.className = 'sep'; return s; }
 
 /* ---------- their side (testing) ---------- */
@@ -2027,24 +2205,24 @@ function loop(now) {
 }
 
 /* ---------- wiring ---------- */
-$('say').addEventListener('submit', e => { e.preventDefault(); const v = $('line').value.trim(); if (!v || talkBusy) return; $('line').value = ''; $('say-btn').disabled = true; sayLine(v); });
-$('line').addEventListener('input', () => { $('say-btn').disabled = talkBusy || !$('line').value.trim(); });
-$('step-away').onclick = () => endTalk();
-$('do').addEventListener('submit', e => { e.preventDefault(); const v = $('act').value.trim(); if (!v || doBusy) return; doAction(v); });
-$('act').addEventListener('input', () => { $('do-btn').disabled = doBusy || !$('act').value.trim(); });
-$('do-cancel').onclick = closeDo;
+$('cmd').addEventListener('submit', e => { e.preventDefault(); submitLine($('line').value); });
+// ? and " are one-line shortcuts: they show which kind of move this line is, without changing the box's mode
+$('line').addEventListener('input', () => { const v = $('line').value, eff = v.startsWith('?') ? 'think' : /^["“]/.test(v) ? 'say' : mode; $('go').textContent = { say: 'Say', do: 'Do', think: 'Think' }[eff]; document.querySelectorAll('#modes button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === eff)); });
+document.querySelectorAll('#modes button').forEach(b => b.onclick = () => setMode(b.dataset.mode));
+$('sheet-close').onclick = closeSheet;
 $('compose').addEventListener('submit', e => { e.preventDefault(); const v = $('draft').value; $('draft').value = ''; $('draft').style.height = ''; $('send').disabled = true; sendText(v); });
 $('draft').addEventListener('input', () => { $('send').disabled = textBusy || !$('draft').value.trim(); $('draft').style.height = 'auto'; $('draft').style.height = $('draft').scrollHeight + 'px'; });
 $('draft').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('compose').requestSubmit(); } });
 $('p-back').onclick = showContacts; $('p-close').onclick = closePhone; $('map-close').onclick = closeMap;
-$('scrim').onclick = () => { closePhone(); closeMap(); };
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closePhone(); closeMap(); } });
+$('scrim').onclick = () => { closePhone(); closeMap(); closeSheet(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closePhone(); closeMap(); closeSheet(); } });
 $('b-sound').onclick = e => e.currentTarget.setAttribute('aria-pressed', audio.toggle());
 $('b-grade').onclick = e => { const v = film.uniforms.gradeOn.value ? 0 : 1; film.uniforms.gradeOn.value = v; e.currentTarget.setAttribute('aria-pressed', !!v); };
 $('b-side').onclick = e => { const on = $('thoughts').hidden; $('thoughts').hidden = !on; e.currentTarget.setAttribute('aria-pressed', on); renderSide(); };
 $('b-restart').onclick = () => card('', 'Start over?', 'This erases your saved world: everyone you met and everything they remember.', [['Erase and start over', async () => { await wipeSave(); S = freshWorld(); begin(); }, true], ['Keep playing', hideCard]], true);
 
 async function begin() {
+  $('log').replaceChildren(); renderCmd();
   hideCard(); setStage('condo', null, true); hud(); setBusy(true, 'Morning.');
   logIt('Woke up.');
   const r = await direct('wake'); applyScene(r, 'arrive'); placeFigures(); setBusy(false); renderDesc(); renderActs(); save(); await flushCards();
@@ -2055,9 +2233,9 @@ async function boot() {
   const intro = `The Outer Sunset, present day. You are 47, a product manager with two kids, a wife who takes three buses to Marin, and a condo at 46th and Judah.\n\nNothing is required of you. Go where you want. People remember.`;
   if (saved && saved.v === 1 && saved.people) {
     card('', 'One Open Day', intro, [[`Continue: ${weekday(saved.day)}, ${fmt(saved.min)}`, async () => {
-      S = saved; S.needs ||= []; S.plans ||= []; hideCard(); setStage(PLACES[S.place].stage, PLACES[S.place].dress, true); hud();
+      S = saved; S.needs ||= []; S.plans ||= []; S.transcript ||= []; S.objects ||= freshWorld().objects; hideCard(); renderLog(); renderCmd(); setStage(PLACES[S.place].stage, PLACES[S.place].dress, true); hud();
       if (!S.scene || S.scene.place !== S.place) { setBusy(true, 'Picking up where you left off…'); const r = await direct('arrive'); applyScene(r, 'arrive'); setBusy(false); }
-      placeFigures(); renderDesc(); renderActs(); await flushCards();
+      placeFigures(); renderActs(); await flushCards();
     }, true], ['Start a new world', () => $('b-restart').click()]], true);
   } else card('', 'One Open Day', intro, [['Begin: Tuesday, 7:10 A.M.', begin, true]], true);
 }
