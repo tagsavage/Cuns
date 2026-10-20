@@ -233,7 +233,7 @@ button[aria-pressed="true"] { color: var(--slate); border-color: var(--rust); }
     <button id="b-side" aria-pressed="false" title="See what people privately think of you (for testing)">Their side</button>
     <button id="b-grade" aria-pressed="true">Film</button>
   </div>
-  <div class="group"><button id="b-restart">Start over</button></div>
+  <div class="group"><button id="b-log" title="Copy everything that happened, to paste into a chat">Copy log</button><button id="b-restart">Start over</button></div>
 </div>
 
 <div id="scrim" hidden></div>
@@ -1234,7 +1234,7 @@ function freshWorld() {
       priya: { id: 'priya', name: 'Priya', hasNumber: true, regard: 55, company: 30, memories: [], facts: [], look: { skin: 'brown', hair: 'black', top: 'navy' },
         bio: 'Priya, the player\'s manager at Slack. 39, sharp, decent, overextended, under pressure from her own boss about AI features. Likes the player but has started to wonder if they still want this job. Texts in full sentences.' },
     },
-    needs: [], plans: [], kidsAt: null, transcript: [],
+    needs: [], plans: [], transcript: [], kid: { big: { st: 'home', at: null }, little: { st: 'home', at: null } },
     objects: {
       wallet: { id: 'wallet', name: 'wallet', at: 'player', where: '' }, keys: { id: 'keys', name: 'keys', at: 'player', where: '' }, clipper: { id: 'clipper', name: 'Clipper card', at: 'player', where: '' },
       slips: { id: 'slips', name: 'permission slips (aquarium field trip)', at: 'home', where: 'on the kitchen counter' },
@@ -1303,15 +1303,28 @@ async function ask(prompt, ctl) {
 
 /* ---------- schedules: what the world is doing whether you look or not ---------- */
 function wifeHome(min) { if (!isWeekday(S.day)) return min >= 8 * 60; return min < 7 * 60 + 35 || min >= 18 * 60 + 30; }
+// Each kid is tracked on their own: one can leave while the other stays with you.
+const KIDS = ['big', 'little'];
+const kst = id => S.kid?.[id]?.st || 'home';
+function setK(id, st, at = null) { S.kid[id] = { st, at }; }
+const kidsWhere = st => KIDS.filter(k => kst(k) === st);
+const kidNames = ids => ids.length === 2 ? 'the kids' : ids.map(id => nameOf(id).replace(/^Your /, 'your ')).join(' and ');
 function familyHere(place) {
   const out = [];
   if (place === 'home' && wifeHome(S.min) && !S.wifeAway) out.push('wife');
-  const kidsHere = (S.kids === 'home' && place === 'home') || S.kids === 'with' || (S.kids === 'school' && place === 'school' && S.min >= 14 * 60 + 50) || (S.kids === 'elsewhere' && S.kidsAt === place);
-  if (kidsHere) out.push('big', 'little');
+  for (const k of KIDS) {
+    const st = kst(k), at = S.kid[k]?.at;
+    if ((st === 'home' && place === 'home') || st === 'with' || (st === 'school' && place === 'school' && S.min >= 14 * 60 + 50) || (st === 'elsewhere' && at === place)) out.push(k);
+  }
   return out;
 }
 function kidsLine() {
-  return { home: 'The kids are at home.', with: 'Both kids are with the player.', school: 'The kids are at school.', aftercare: 'The kids are in aftercare at school; the player missed pickup.', bed: 'The kids are asleep.', transit: 'The kids are out on their own, on their way somewhere.', elsewhere: `The kids are at ${PLACES[S.kidsAt]?.name || 'somewhere else'} without the player.` }[S.kids] || '';
+  const d = (st, at) => ({ home: 'at home', with: 'with the player', school: 'at school', aftercare: 'in aftercare at school (the player missed pickup)', bed: 'asleep', transit: 'out on their own, on the way somewhere', elsewhere: `at ${PLACES[at]?.name || 'somewhere else'} without the player` }[st] || st);
+  const a = S.kid.big, b = S.kid.little;
+  return a.st === b.st && a.at === b.at ? `Both kids are ${d(a.st, a.at)}.` : `The older kid is ${d(a.st, a.at)}. The younger kid is ${d(b.st, b.at)}.`;
+}
+function recentTranscript(n = 24) {
+  return S.transcript.slice(-n).map(e => e.k === 'you' ? `PLAYER (${e.tag}): ${e.text}` : e.k === 'npc' ? `${e.who}: "${e.text}"` : e.k === 'place' ? `-- ${e.text}` : e.k === 'think' ? `(player's thought: ${e.text})` : e.text).join('\n');
 }
 /* ---------- the game master's ledger: what's owed, what's in motion ---------- */
 // Claude decides what happens; this only keeps track of what was agreed, where people went, and when time ran out.
@@ -1356,22 +1369,35 @@ function applyDeals(r, fromId) {
   for (const a of (Array.isArray(r?.agreements) ? r.agreements : []).slice(0, 2)) addPlan(a, fromId);
   for (const a of (Array.isArray(r?.asks) ? r.asks : []).slice(0, 2)) addNeed(a.text, parseClock(a.by), fromId, 'task');
   for (const id of (Array.isArray(r?.needs_met) ? r.needs_met : [])) meetNeeds([id]);
+  for (const c of (Array.isArray(r?.plans_changed) ? r.plans_changed : []).slice(0, 3)) changePlan(c);
   renderMind();
+}
+// What happened contradicted a plan: someone stayed behind, refused, or the whole thing is off.
+function changePlan(c) {
+  const p = S.plans.find(x => x.id === c?.id && x.status !== 'done'); if (!p) return;
+  const back = id => { if (KIDS.includes(id) && kst(id) === 'transit') { const f = p.kidFrom?.[id]; setK(id, f && f.st !== 'transit' ? f.st : (p.from === 'home' ? 'home' : 'with'), f?.at || null); } };
+  const drop = (Array.isArray(c.drop) ? c.drop : []).map(x => String(x).toLowerCase());
+  if (c.cancel || drop.length >= p.who.length) { p.who.forEach(back); p.status = 'done'; p.result = 'called off'; logIt(`Called off: ${p.what}.`); tx('sys', `Off: ${p.who.map(nameOf).join(' and ')}: ${p.what}.`.replace(/ and Your /, ' and your ')); }
+  else if (drop.length) { drop.forEach(back); p.who = p.who.filter(id => !drop.includes(id)); p.stayed = (p.stayed || []).concat(drop); logIt(`${drop.map(nameOf).join(' and ')} not part of: ${p.what}.`); }
+  placeFigures(); renderActs();
 }
 const kidsIn = ids => ids.includes('big') || ids.includes('little');
 function ledgerText() {
   const open = S.needs.filter(n => n.status === 'open');
   const plans = S.plans.filter(p => p.status !== 'done');
   return `Open needs (things the player is expected to do): ${open.length ? '\n' + open.map(n => `- [${n.id}] ${n.text}${n.by ? ', by ' + fmt(n.by) : ''}${n.from ? ', for ' + nameOf(n.from) : ''}${n.kind === 'promise' ? ' (the player promised)' : ''}`).join('\n') : 'none.'}
-Plans in motion: ${plans.length ? '\n' + plans.map(p => `- ${p.who.map(nameOf).join(' and ')}: ${p.what}, ${p.status === 'pending' ? 'starting ' + fmt(p.at) : 'under way since ' + fmt(p.at)}${p.to ? ' (to ' + PLACES[p.to].name + ')' : ''}`).join('\n') : 'none.'}
+Plans in motion: ${plans.length ? '\n' + plans.map(p => `- [${p.id}] ${p.who.map(nameOf).join(' and ')}: ${p.what}, ${p.status === 'pending' ? 'starting ' + fmt(p.at) : 'under way since ' + fmt(p.at)}${p.to ? ' (to ' + PLACES[p.to].name + ')' : ''}`).join('\n') : 'none.'}
 Place ids: ${PLACE_IDS.map(id => `${id} = ${PLACES[id].name}`).join(', ')}.`;
 }
 const worldQueue = [];
 function checkWorld(from, to) {
   for (const p of S.plans) {
     if (p.status === 'pending' && p.at <= to) {
-      p.status = 'underway';
-      if (kidsIn(p.who)) S.kids = 'transit';
+      p.status = 'underway'; p.from = S.place;
+      // only people who are actually free to go set off; a kid already at school or with the player doesn't
+      p.who = p.who.filter(id => !KIDS.includes(id) || ['home', 'with', 'elsewhere'].includes(kst(id)));
+      for (const k of p.who.filter(id => KIDS.includes(id))) { p.kidFrom ||= {}; p.kidFrom[k] = { ...S.kid[k] }; setK(k, 'transit'); }
+      if (!p.who.length) { p.status = 'done'; p.result = 'never got going'; logIt(`Plan fell through: ${p.what}.`); continue; }
       for (const id of p.who) if (!S.people[id]?.fam && p.to) S.people[id].haunt = p.to;
       if (S.scene) {
         const leaving = S.scene.present.filter(x => p.who.includes(x.id));
@@ -1379,7 +1405,12 @@ function checkWorld(from, to) {
         if (leaving.length) { S.scene.present = S.scene.present.filter(x => !p.who.includes(x.id)); tx('event', `${leaving.map(x => S.people[x.id].name).join(' and ')} head${leaving.length > 1 ? '' : 's'} out${p.to ? ' for ' + PLACES[p.to].name : ''}.`.replace(/ and Your /, ' and your ')); placeFigures(); renderActs(); }
       }
     }
-    if (p.status === 'underway' && p.until <= to) { p.status = 'resolving'; worldQueue.push({ kind: 'plan', item: p }); }
+    if (p.status === 'underway' && p.until <= to) {
+      const stayed = p.who.filter(id => KIDS.includes(id) && kst(id) !== 'transit');      // e.g. you walked the little one yourself
+      p.who = p.who.filter(id => !stayed.includes(id)); if (stayed.length) p.stayed = (p.stayed || []).concat(stayed);
+      if (!p.who.length) { p.status = 'done'; p.result = 'did not happen as agreed'; logIt(`Plan did not happen as agreed: ${p.what}.`); continue; }
+      p.status = 'resolving'; worldQueue.push({ kind: 'plan', item: p });
+    }
   }
   for (const n of S.needs) if (n.status === 'open' && n.by != null && n.by <= to) { n.status = 'missed'; worldQueue.push({ kind: 'missed', item: n }); }
 }
@@ -1390,7 +1421,7 @@ async function flushWorld() {
     while (worldQueue.length) {
       const { kind, item } = worldQueue.shift();
       const task = kind === 'plan'
-        ? `This plan just played out away from the player: ${item.who.map(nameOf).join(' and ')} — "${item.what}" — from ${fmt(item.at)} to ${fmt(item.until)}${item.to ? ', headed to ' + PLACES[item.to].name : ''}. Decide honestly how it went, given who these people are (children are children; most ordinary things go fine, some go sideways).`
+        ? `This plan just played out away from the player: ${item.who.map(nameOf).join(' and ')} — "${item.what}" — from ${fmt(item.at)} to ${fmt(item.until)}${item.to ? ', headed to ' + PLACES[item.to].name : ''}.${item.stayed?.length ? ` Note: ${item.stayed.map(nameOf).join(' and ')} did NOT go; they were with the player instead.` : ''} Decide honestly how it went, given who these people are (children are children; most ordinary things go fine, some go sideways). The transcript below is what actually happened: if it contradicts the plan (someone refused, stayed behind, money was taken back), the transcript wins. Only describe what the people still in the plan did.`
         : `A deadline passed: "${item.text}"${item.from ? ' (for ' + nameOf(item.from) + ')' : ''}, due ${fmt(item.by)}. It did not get done. Decide the realistic consequence: usually small, sometimes not. Whoever cares will remember.`;
       const r = await ask(`${DIRECTOR}
 
@@ -1399,6 +1430,9 @@ ${contextText()}
 
 PEOPLE THE WORLD KNOWS
 ${rosterText()}
+
+WHAT ACTUALLY HAPPENED (transcript, most recent last)
+${recentTranscript(30)}
 
 TASK
 ${task}
@@ -1410,15 +1444,16 @@ Reply with ONLY one JSON object:
  "text": null or {"from": "a known id (family members can text; the older kid can use an old phone)", "text": "a text they send the player about it"},
  "remembers": [0 to 2 {"id": "person id", "text": "a few words"}],
  "needs_met": [ids of open needs this satisfied],
- "new_need": null or {"text": "something the player now has to deal with", "by": "HH:MM 24-hour or null"}}`);
+ "new_need": null or {"text": "something the player now has to deal with", "by": "HH:MM 24-hour or null"},
+ "objects": [0 to 3 objects whose location changed, same shape as always: {"id","name","at","where"}]}`);
       const outcome = String(r?.outcome || (kind === 'plan' ? `${item.who.map(nameOf).join(' and ')}: ${item.what}. It happened.` : `${item.text}: it didn't happen.`));
       if (kind === 'plan') {
         item.status = 'done'; item.result = outcome;
         const end = PLACE_IDS.includes(r?.ended_at) ? r.ended_at : item.to;
-        if (kidsIn(item.who)) {
-          if (end === 'school' && isWeekday(S.day) && S.min < 15 * 60 + 30 && r?.succeeded !== false) { S.kids = 'school'; S.flags.dropped = true; }
-          else if (!end || end === 'home') S.kids = S.min >= 20 * 60 + 30 ? 'bed' : 'home';
-          else { S.kids = 'elsewhere'; S.kidsAt = end; }
+        for (const k of item.who.filter(id => KIDS.includes(id))) {
+          if (end === 'school' && isWeekday(S.day) && S.min < 15 * 60 + 30 && r?.succeeded !== false) setK(k, 'school');
+          else if (!end || end === 'home') setK(k, S.min >= 20 * 60 + 30 ? 'bed' : 'home');
+          else setK(k, 'elsewhere', end);
         }
         for (const id of item.who) if (!S.people[id]?.fam && end) S.people[id].haunt = end;
       } else item.result = outcome;
@@ -1437,7 +1472,7 @@ Reply with ONLY one JSON object:
 function tx(k, text, o = {}) {
   if (!text) return null;
   const e = { k, text: String(text), who: o.who || null, tag: o.tag || null, m: S.min, d: S.day };
-  if (!o.ephemeral) { S.transcript.push(e); if (S.transcript.length > 140) S.transcript.splice(0, S.transcript.length - 140); }
+  if (!o.ephemeral) { S.transcript.push(e); if (S.transcript.length > 400) S.transcript.splice(0, S.transcript.length - 400); }
   const el = txEl(e, o); $('log').append(el); $('log').scrollTop = $('log').scrollHeight;
   return el;
 }
@@ -1524,7 +1559,7 @@ async function sayTo(id, text) {
   talkCtl = new AbortController();
   const r = await ask(personPrompt(p, 'talk', tr), talkCtl);
   if (!r) { p.talk.pop(); setBusy(false); $('note').textContent = lastErr; return; }
-  applyFeelings(p, r);
+  applyFeelings(p, r); applyObjects(r);
   const fig = figures.get(p.id);
   if (fig && r.gesture && GESTURES[r.gesture]) { fig.gesture = r.gesture; fig.gestureUntil = performance.now() / 1000 + 3.5; }
   if (fig) fig.base = fig.kind === 'sit' ? (p.regard < 42 ? 'guarded' : p.regard > 72 ? 'open' : 'neutral') : (p.regard < 40 ? 'guarded' : fig.child ? 'child' : 'stand');
@@ -1689,14 +1724,14 @@ function openMind() {
 
 // Things that happen at set times. Each fires once per day.
 const CLOCK = [
-  { at: 7 * 60 + 35, id: 'wife-leaves', run: () => { if (!isWeekday(S.day)) return; if (S.place === 'home') note('Your wife leaves for her three buses.'); const kidsAround = S.kids === 'home' || S.kids === 'with'; textFrom('wife', kidsAround ? "ok i'm off. kids need to be at school by 8:15. permission slip is on the counter" : "ok i'm off"); if (kidsAround) addNeed('Get the permission slip to school', 8 * 60 + 15, 'wife'); } },
-  { at: 8 * 60 + 40, id: 'absent', run: () => { if (!isWeekday(S.day) || S.flags.dropped) return; S.flags.absent = true; textFrom('school', "Sunset Elementary: Your children have been marked absent today. Please call the office."); remember('wife', 'kids marked absent from school'); setTimeout(() => textFrom('wife', 'why did the school just text me they\'re absent??'), 2500); } },
+  { at: 7 * 60 + 35, id: 'wife-leaves', run: () => { if (!isWeekday(S.day)) return; if (S.place === 'home') note('Your wife leaves for her three buses.'); const kidsAround = KIDS.some(k => ['home', 'with'].includes(kst(k))); textFrom('wife', kidsAround ? "ok i'm off. kids need to be at school by 8:15. permission slip is on the counter" : "ok i'm off"); if (kidsAround) addNeed('Get the permission slip to school', 8 * 60 + 15, 'wife'); } },
+  { at: 8 * 60 + 40, id: 'absent', run: () => { const missing = KIDS.filter(k => !['school', 'transit'].includes(kst(k))); if (!isWeekday(S.day) || !missing.length) return; S.flags.absent = true; textFrom('school', `Sunset Elementary: ${missing.length === 2 ? 'Your children have' : 'Your ' + (missing[0] === 'big' ? 'older' : 'younger') + ' child has'} been marked absent today. Please call the office.`); remember('wife', 'kids marked absent from school'); setTimeout(() => textFrom('wife', 'why did the school just text me they\'re absent??'), 2500); } },
   { at: 10 * 60, id: 'mtg1', run: () => isWeekday(S.day) && meeting('Q4 roadmap sync', 'mtg1') },
   { at: 12 * 60 + 25, id: 'wife-noon', run: () => isWeekday(S.day) && aiText('wife', 'It is lunchtime at her office in Marin. She sends a short, ordinary midday text to the player, based on what she knows of the day so far.') },
   { at: 14 * 60, id: 'mtg2', run: () => isWeekday(S.day) && meeting('1:1 with Priya', 'mtg2') },
-  { at: 15 * 60 + 35, id: 'pickup', run: () => { if (S.kids !== 'school') return; S.kids = 'aftercare'; textFrom('school', 'Sunset Elementary: Your children were not picked up and have been placed in aftercare ($35).'); S.balance -= 35; remember('wife', 'the school called her at work about pickup'); remember('little', 'waited at pickup and nobody came'); setTimeout(() => textFrom('wife', "the school called me. at work. in marin. i'll get them on my way home"), 3000); } },
-  { at: 18 * 60 + 30, id: 'wife-home', run: () => { if (!isWeekday(S.day)) return; if (S.kids === 'aftercare') S.kids = 'home'; if (S.place !== 'home') aiText('wife', 'She just got home after three buses. The player is not home. She texts to find out where they are, given what she knows.'); } },
-  { at: 20 * 60 + 30, id: 'bedtime', run: () => { if (S.kids === 'home') S.kids = 'bed'; else if (S.kids === 'with') aiText('wife', "It's the kids' bedtime and the player still has both kids out. She texts about it."); } },
+  { at: 15 * 60 + 35, id: 'pickup', run: () => { const left = kidsWhere('school'); if (!left.length) return; left.forEach(k => setK(k, 'aftercare')); textFrom('school', 'Sunset Elementary: Your children were not picked up and have been placed in aftercare ($35).'); S.balance -= 35; remember('wife', 'the school called her at work about pickup'); remember('little', 'waited at pickup and nobody came'); setTimeout(() => textFrom('wife', "the school called me. at work. in marin. i'll get them on my way home"), 3000); } },
+  { at: 18 * 60 + 30, id: 'wife-home', run: () => { if (!isWeekday(S.day)) return; kidsWhere('aftercare').forEach(k => setK(k, 'home')); if (S.place !== 'home') aiText('wife', 'She just got home after three buses. The player is not home. She texts to find out where they are, given what she knows.'); } },
+  { at: 20 * 60 + 30, id: 'bedtime', run: () => { kidsWhere('home').forEach(k => setK(k, 'bed')); if (kidsWhere('with').length) aiText('wife', "It's the kids' bedtime and the player still has both kids out. She texts about it."); } },
   { at: 21 * 60 + 40, id: 'dev-ping', run: () => S.day === 1 && textFrom('dev', "lol we're hiring again. want me to put your name in?") },
   { at: 23 * 60 + 48, id: 'halcyon', run: () => { if (S.day !== 1) return; S.flags.halcyon = true; textFrom('halcyon', 'Re: Product Manager, Agents — Thank you for the time you spent with our team. After careful consideration, we have decided to move forward with other candidates.'); logIt('A rejection email from Halcyon.'); } },
 ];
@@ -1738,7 +1773,9 @@ Recent events (oldest first):
 ${S.log.slice(-10).map(l => `- day ${l.d} ${fmt(l.m)}: ${l.text}`).join('\n') || '- (nothing yet today)'}
 Open loose ends: ${S.threads.length ? S.threads.join('; ') : 'none'}.
 ${ledgerText()}
-${objectsText()}`;
+${objectsText()}
+WHAT JUST HAPPENED (transcript, most recent last; this is the truth, and it overrides plans and earlier descriptions):
+${recentTranscript(20) || '(nothing yet)'}`;
 }
 
 /* ---------- the director ---------- */
@@ -1769,8 +1806,9 @@ const DIRECTOR_FORMAT = `Reply with ONLY one JSON object:
  "go_to": null, or a place id if the player's action means going somewhere else,
  "energy": change in the player's energy, usually 0,
  "objects": [0 to 5 objects that matter whose existence or location is established or changed by this, each {"id": "known id or a new slug", "name": "short", "at": "here" or "player" or a person id or a place id or an object id (inside it) or "gone", "where": "short detail, e.g. 'on the kitchen counter'"}],
- "sleep": null, or "bed" if the player is going to bed for the night (only at home), or "nap" if lying down to rest}
-Objects listed as facts are facts. If something moved, report it in objects; if it isn't listed, you may establish it.`;
+ "sleep": null, or "bed" if the player is going to bed for the night (only at home), or "nap" if lying down to rest,
+ "plans_changed": [0 to 2 {"id": "a plan id from Plans in motion", "drop": [ids of people no longer part of it], "cancel": true if it is off entirely}] whenever what happened contradicts a plan (someone stayed behind, refused, or the player took over)}
+Objects listed as facts are facts. If something moved, report it in objects; if it isn't listed, you may establish it. Cash that changes hands is an object too (e.g. "a ten-dollar bill"): record who holds it.`;
 
 async function direct(kind, extra = '') {
   const here = familyHere(S.place).map(id => S.people[id].name).join(', ');
@@ -1812,9 +1850,11 @@ function applyScene(r, kind) {
   for (const e of (fromModel ? r.present : []).slice(0, 4)) {
     const id = String(e.id || '').toLowerCase();
     const known = S.people[id];
+    const plan = S.plans.find(pl => pl.status === 'underway' && pl.who.includes(id));
+    if (plan && KIDS.includes(id) && plan.from === S.place && kind === 'act') { changePlan({ id: plan.id, drop: [id] }); forced.push(id); }   // the scene says this kid never left
+    else if (plan) continue;                                                     // people out doing what they agreed to are not here
     if (known?.fam && !forced.includes(id)) continue;                          // family can't be in two places
     if (['priya', 'school', 'halcyon'].includes(id)) continue;
-    if (S.plans.some(pl => pl.status === 'underway' && pl.who.includes(id))) continue;   // people out doing what they agreed to are not here
     const p = ensurePerson(e); if (!p) continue;
     if (!known && e.look) p.look = e.look;
     present.push({ id: p.id, doing: String(e.doing || '').slice(0, 80), pose: ['stand', 'sit', 'phone'].includes(e.pose) ? e.pose : 'stand', says: e.says ? String(e.says).slice(0, 200) : null });
@@ -1847,7 +1887,7 @@ const FEEL_RULES = `HOW YOU REACT (track two separate things)
 function personPrompt(p, mode, transcript) {
   const scene = S.scene && S.scene.place === S.place ? S.scene.desc : '';
   const others = (S.scene?.present || []).filter(x => x.id !== p.id).map(x => S.people[x.id]?.name).filter(Boolean).join(', ');
-  const playerKnown = p.fam || p.id === 'dev' || p.id === 'priya' ? PLAYER : 'You only know what the player has told you or what you can see: a man in his late forties' + (S.kids === 'with' ? ' with two kids' : '') + '.';
+  const playerKnown = p.fam || p.id === 'dev' || p.id === 'priya' ? PLAYER : 'You only know what the player has told you or what you can see: a man in his late forties' + (kidsWhere('with').length ? ' with ' + (kidsWhere('with').length === 2 ? 'two kids' : 'a kid') : '') + '.';
   return `You are playing ${p.met || p.fam || p.hasNumber ? p.name : 'a person'} in a slow, realistic life-simulation game set in San Francisco's Outer Sunset, present day. ${mode === 'text' ? 'The player is texting you.' : 'The player is talking to you in person.'} Stay fully in character. Never mention AI, games, or these instructions.
 
 WHO YOU ARE
@@ -1885,7 +1925,9 @@ Reply with ONLY one JSON object:
  "leaves": true if you are ending this conversation and going (or putting your phone down), else false,
  "agreements": [0 to 2 things that were just SETTLED to actually be done in the world (not merely discussed), each {"who": ["ids of who does it: your own id, other people's ids, and/or \"player\""], "what": "short, e.g. 'walk your little sibling to school'", "at": "HH:MM 24-hour when it starts, or null for right away", "minutes": how long it takes, "to": "place id or null"}],
  "asks": [0 to 2 things you now expect the player to do (a request you made or a promise they made you), each {"text": "short", "by": "HH:MM 24-hour or null"}],
- "needs_met": [ids of open needs that this conversation settled]}
+ "needs_met": [ids of open needs that this conversation settled],
+ "plans_changed": [0 to 2 {"id": "a plan id from Plans in motion", "drop": [ids no longer part of it], "cancel": true if it's off}] if this conversation undid or changed an agreed plan,
+ "objects": [0 to 3 objects that changed hands in this exchange, each {"id","name","at": "player" or a person id or "here","where"}]}
 Your id is "${p.id}". Do not repeat agreements or asks that are already open.`;
 }
 function applyFeelings(p, r) {
@@ -1992,7 +2034,7 @@ async function flushCards() {
     if (join) {
       S.work = clamp(S.work + 3, 58); advance(30); logIt(`Took the ${c.title} call from ${PLACES[S.place].name}${late > 5 ? ', late' : ''}.`);
       tx('event', `You take the ${c.title} on your phone${S.place === 'home' ? '' : ' at ' + PLACES[S.place].name}. Thirty minutes pass.`);
-      if (S.place === 'beach' || S.place === 'tide' || S.kids === 'with') remember('priya', `took our ${c.title} from somewhere loud`);
+      if (S.place === 'beach' || S.place === 'tide' || kidsWhere('with').length) remember('priya', `took our ${c.title} from somewhere loud`);
     } else {
       S.work = clamp(S.work - 8, 58); logIt(`Skipped ${c.title}.`); remember('priya', `skipped ${c.title}`);
       if (c.id === 'mtg2') setTimeout(() => aiText('priya', 'The player just skipped your 1:1 without warning. Text them about it, as their manager.'), 4000);
@@ -2006,19 +2048,22 @@ function flushWorldSoon() { flushWorld(); }
 async function goTo(dest) {
   closeMap(); closePhone(); closeSheet(); if (talking) endTalk();
   const from = S.place, tr = travel(from, dest);
-  const kidsBusy = S.plans.some(p => p.status !== 'done' && kidsIn(p.who));
-  if (!kidsBusy && from === 'home' && S.kids === 'home' && S.min < 15 * 60 && isWeekday(S.day) && !S.flags.dropped) S.kids = 'with';           // you can't leave a 7-year-old alone
-  if (!kidsBusy && from === 'home' && S.kids === 'home' && (!isWeekday(S.day) || S.flags.dropped) && !wifeHome(S.min)) S.kids = 'with';
-  const withKids = S.kids === 'with' ? ' with the kids' : '';
-  tx('sys', `${tr.how === 'N-Judah' ? 'You take the N' : 'You walk'} to ${PLACES[dest].name}${withKids}. ${tr.min} min.`);
-  card(fmt(S.min), tr.how === 'N-Judah' ? `Taking the N to ${PLACES[dest].name}` : `Walking to ${PLACES[dest].name}`, `${tr.min} minutes${withKids}.${tr.fare ? ` $${tr.fare * (S.kids === 'with' ? 1 : 1)} fare.` : ''}`, [], false);
+  // a kid at home comes with you if there's no other grown-up home, or it's a school morning; not if they've agreed to their own plan
+  for (const k of KIDS) {
+    if (from !== 'home' || kst(k) !== 'home') continue;
+    if (S.plans.some(p => p.status === 'pending' && p.who.includes(k))) continue;
+    if ((isWeekday(S.day) && S.min < 15 * 60) || !wifeHome(S.min)) setK(k, 'with');
+  }
+  const withKids = kidsWhere('with').length ? ' with ' + kidNames(kidsWhere('with')) : '';
+  tx('sys', `${tr.how === 'N-Judah' ? 'You take the N' : 'You walk'} ${dest === 'home' ? 'home' : 'to ' + PLACES[dest].name}${withKids}. ${tr.min} min.`);
+  card(fmt(S.min), tr.how === 'N-Judah' ? `Taking the N to ${PLACES[dest].name}` : `Walking to ${PLACES[dest].name}`, `${tr.min} minutes${withKids}.${tr.fare ? ` $${tr.fare} fare.` : ''}`, [], false);
   setStage(PLACES[dest].stage, PLACES[dest].dress, true);
   S.place = dest; advance(tr.min, true);
   if (tr.fare) { S.spent += tr.fare; S.balance -= tr.fare; }
   // the school does its own thing when you show up
-  if (dest === 'school' && S.kids === 'with' && isWeekday(S.day) && S.min < 15 * 60) { S.kids = 'school'; S.flags.dropped = true; logIt(S.min > 8 * 60 + 15 ? 'Dropped the kids at school, late.' : 'Dropped the kids at school.'); if (S.min > 8 * 60 + 15) remember('big', 'we were late to school'); }
-  else if (dest === 'school' && (S.kids === 'school' || S.kids === 'aftercare') && S.min >= 14 * 60 + 45) { S.kids = 'with'; logIt('Picked up the kids.'); if (S.flags['pickup:' + S.day]) remember('little', 'got picked up from aftercare'); }
-  if (dest === 'home' && S.kids === 'with') S.kids = S.min >= 20 * 60 + 30 ? 'bed' : 'home';
+  if (dest === 'school' && isWeekday(S.day) && S.min < 15 * 60 && kidsWhere('with').length) { const w = kidsWhere('with'); w.forEach(k => setK(k, 'school')); const late = S.min > 8 * 60 + 15; logIt(`Dropped ${kidNames(w)} at school${late ? ', late' : ''}.`); tx('event', `You drop ${kidNames(w)} at the gate${late ? ', late' : ''}.`); if (late) w.forEach(k => remember(k, 'was late to school')); }
+  else if (dest === 'school' && S.min >= 14 * 60 + 45 && (kidsWhere('school').length || kidsWhere('aftercare').length)) { const w = [...kidsWhere('school'), ...kidsWhere('aftercare')]; w.forEach(k => setK(k, 'with')); logIt(`Picked up ${kidNames(w)}.`); if (S.flags['pickup:' + S.day]) remember('little', 'got picked up from aftercare'); }
+  if (dest === 'home') kidsWhere('with').forEach(k => setK(k, S.min >= 20 * 60 + 30 ? 'bed' : 'home'));
   const t0 = performance.now();
   const r = await direct('arrive');
   await wait(Math.max(0, 1600 - (performance.now() - t0)));
@@ -2042,7 +2087,7 @@ Still undone: ${S.needs.filter(n => n.status === 'open').map(n => n.text).join('
 Reply with ONLY JSON: {"summary": "the day as 3 or 4 short film-slate lines, second person, past tense, plain and specific, separated by newlines", "tomorrow_weather": "short, e.g. 'fog, 55°F' or 'clear and windy, 64°F'"}`);
   const day = S.day, summary = r?.summary ? String(r.summary) : 'The day happened. Some of it on purpose.';
   logIt('Went to bed.');
-  S.day += 1; S.min = 7 * 60 + 5; S.energy = clamp(Math.min(90, 55 + S.energy * .4 + 25), 70); S.spent = 0; S.kids = 'home'; S.place = 'home'; S.convo = null;
+  S.day += 1; S.min = 7 * 60 + 5; S.energy = clamp(Math.min(90, 55 + S.energy * .4 + 25), 70); S.spent = 0; S.kid = { big: { st: 'home', at: null }, little: { st: 'home', at: null } }; S.place = 'home'; S.convo = null;
   S.weather = r?.tomorrow_weather ? String(r.tomorrow_weather).slice(0, 40) : 'fog, 56°F'; S.flags.dropped = false; S.flags.absent = false; S.scene = null;
   S.needs = S.needs.filter(n => n.status === 'open').map(n => ({ ...n, by: null })); S.plans = [];
   for (const k of Object.keys(S.flags)) if (k.endsWith(':' + day)) delete S.flags[k];
@@ -2210,6 +2255,22 @@ $('cmd').addEventListener('submit', e => { e.preventDefault(); submitLine($('lin
 $('line').addEventListener('input', () => { const v = $('line').value, eff = v.startsWith('?') ? 'think' : /^["“]/.test(v) ? 'say' : mode; $('go').textContent = { say: 'Say', do: 'Do', think: 'Think' }[eff]; document.querySelectorAll('#modes button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === eff)); });
 document.querySelectorAll('#modes button').forEach(b => b.onclick = () => setMode(b.dataset.mode));
 $('sheet-close').onclick = closeSheet;
+function buildLog() {
+  const L = [`ONE OPEN DAY LOG · ${weekday(S.day)} (day ${S.day}), ${fmt(S.min)} · at ${PLACES[S.place].name}`, '', '== TRANSCRIPT ==',
+    ...S.transcript.map(e => `[d${e.d} ${fmtAp(e.m)}] ` + (e.k === 'you' ? `${e.tag}: ${e.text}` : e.k === 'npc' ? `${e.who}: "${e.text}"` : e.k === 'phone' ? `PHONE ${e.who}: ${e.text}` : `${e.k.toUpperCase()}: ${e.text}`)),
+    '', '== KIDS ==', `older: ${JSON.stringify(S.kid.big)} · younger: ${JSON.stringify(S.kid.little)}`,
+    '', '== PLANS ==', ...S.plans.map(p => `${p.id} ${p.status}: ${p.who.join('+')} · ${p.what} · ${fmtAp(p.at)}–${fmtAp(p.until)}${p.stayed ? ' · stayed: ' + p.stayed.join('+') : ''}${p.result ? ' · ' + p.result : ''}`),
+    '', '== NEEDS ==', ...S.needs.map(n => `${n.id} ${n.status}: ${n.text}${n.by ? ' · by ' + fmtAp(n.by) : ''}${n.from ? ' · ' + n.from : ''}`),
+    '', '== OBJECTS ==', ...Object.values(S.objects).map(o => `${o.id}: ${o.name} · ${o.at}${o.where ? ' · ' + o.where : ''}`),
+    '', '== PEOPLE ==', ...Object.values(S.people).filter(p => !p.noReply).map(p => `${p.id} (${p.name}) regard ${p.regard}, company ${p.company}${p.memories.length ? ' · remembers: ' + p.memories.join('; ') : ''}`),
+    '', '== EVENT LOG ==', ...S.log.map(l => `[d${l.d} ${fmtAp(l.m)}] ${l.text}`)];
+  return L.join('\n');
+}
+$('b-log').onclick = () => {
+  const text = buildLog();
+  const fallback = () => sheet('Your log', body => { const ta = document.createElement('textarea'); ta.value = text; ta.rows = 16; ta.style.width = '100%'; ta.style.fontSize = '12px'; body.append(li('Select all of this and copy it:', 'dim'), ta); ta.focus(); ta.select(); });
+  try { navigator.clipboard.writeText(text).then(() => tx('sys', 'Log copied. Paste it into the chat.', { ephemeral: true }), fallback); } catch { fallback(); }
+};
 $('compose').addEventListener('submit', e => { e.preventDefault(); const v = $('draft').value; $('draft').value = ''; $('draft').style.height = ''; $('send').disabled = true; sendText(v); });
 $('draft').addEventListener('input', () => { $('send').disabled = textBusy || !$('draft').value.trim(); $('draft').style.height = 'auto'; $('draft').style.height = $('draft').scrollHeight + 'px'; });
 $('draft').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('compose').requestSubmit(); } });
@@ -2233,7 +2294,7 @@ async function boot() {
   const intro = `The Outer Sunset, present day. You are 47, a product manager with two kids, a wife who takes three buses to Marin, and a condo at 46th and Judah.\n\nNothing is required of you. Go where you want. People remember.`;
   if (saved && saved.v === 1 && saved.people) {
     card('', 'One Open Day', intro, [[`Continue: ${weekday(saved.day)}, ${fmt(saved.min)}`, async () => {
-      S = saved; S.needs ||= []; S.plans ||= []; S.transcript ||= []; S.objects ||= freshWorld().objects; hideCard(); renderLog(); renderCmd(); setStage(PLACES[S.place].stage, PLACES[S.place].dress, true); hud();
+      S = saved; S.needs ||= []; S.plans ||= []; S.transcript ||= []; S.objects ||= freshWorld().objects; S.kid ||= { big: { st: S.kids || 'home', at: S.kidsAt || null }, little: { st: S.kids || 'home', at: S.kidsAt || null } }; hideCard(); renderLog(); renderCmd(); setStage(PLACES[S.place].stage, PLACES[S.place].dress, true); hud();
       if (!S.scene || S.scene.place !== S.place) { setBusy(true, 'Picking up where you left off…'); const r = await direct('arrive'); applyScene(r, 'arrive'); setBusy(false); }
       placeFigures(); renderActs(); await flushCards();
     }, true], ['Start a new world', () => $('b-restart').click()]], true);
