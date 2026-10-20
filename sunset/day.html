@@ -1234,7 +1234,7 @@ function freshWorld() {
       priya: { id: 'priya', name: 'Priya', hasNumber: true, regard: 55, company: 30, memories: [], facts: [], look: { skin: 'brown', hair: 'black', top: 'navy' },
         bio: 'Priya, the player\'s manager at Slack. 39, sharp, decent, overextended, under pressure from her own boss about AI features. Likes the player but has started to wonder if they still want this job. Texts in full sentences.' },
     },
-    needs: [], plans: [], transcript: [], kid: { big: { st: 'home', at: null }, little: { st: 'home', at: null } },
+    needs: [], plans: [], transcript: [], where: freshWhere(), kid: { big: { st: 'home', at: null }, little: { st: 'home', at: null } },
     objects: {
       wallet: { id: 'wallet', name: 'wallet', at: 'player', where: '' }, keys: { id: 'keys', name: 'keys', at: 'player', where: '' }, clipper: { id: 'clipper', name: 'Clipper card', at: 'player', where: '' },
       slips: { id: 'slips', name: 'permission slips (aquarium field trip)', at: 'home', where: 'on the kitchen counter' },
@@ -1294,14 +1294,62 @@ const ERR_COPY = {
   refused: "That didn't go through. Try it another way.",
 };
 let lastErr = '';
-async function ask(prompt, ctl) {
+async function ask(prompt, ctl, extra = {}) {
   const s = await sampleReady; lastErr = '';
   if (!s) { lastErr = 'People here need Claude to talk. Open this page on claude.ai, signed in.'; return null; }
-  try { return await s.json(prompt, { cache: false, signal: ctl?.signal }); }
+  try { return await s.json(prompt, { cache: false, signal: ctl?.signal, ...extra }); }
   catch (e) { if (e.code !== 'cancelled') lastErr = ERR_COPY[e.code] || "That didn't go through. Try again."; return null; }
 }
 
 /* ---------- schedules: what the world is doing whether you look or not ---------- */
+function freshWhere() { return { wife: { at: 'home', note: '', d: 1, t: 0 }, dev: { at: 'away', note: 'at work at Meridian, or home in the Inner Sunset', d: 1, t: 0 }, priya: { at: 'away', note: 'at the Slack office, or on calls', d: 1, t: 0 } }; }
+// Where someone is. Kids use their own finer record; everyone else uses S.where. Strangers fade from a place after a couple of hours.
+function whereOf(id) {
+  if (KIDS.includes(id)) { const k = S.kid[id]; return ({ with: { at: 'with' }, transit: { at: 'transit' }, elsewhere: { at: k.at }, bed: { at: 'home', note: 'asleep' }, aftercare: { at: 'school', note: 'in aftercare' }, school: { at: 'school', note: 'in class' } })[k.st] || { at: 'home' }; }
+  const w = S.where[id]; if (!w) return { at: 'away' };
+  if (!S.people[id]?.fam && PLACE_IDS.includes(w.at) && (w.d !== S.day || S.min - w.t > 150)) return { at: 'away', note: 'last seen at ' + PLACES[w.at].name };
+  return w;
+}
+function setWhere(id, at, note = '') {
+  if (!S.people[id] || S.people[id].noReply) return;
+  if (KIDS.includes(id)) {
+    if (at === 'with') setK(id, 'with'); else if (at === 'transit') setK(id, 'transit');
+    else if (at === 'home') setK(id, /asleep|bed/i.test(note) ? 'bed' : 'home');
+    else if (at === 'school') setK(id, /aftercare/i.test(note) ? 'aftercare' : 'school');
+    else if (PLACE_IDS.includes(at)) setK(id, at === S.place ? 'with' : 'elsewhere', at === S.place ? null : at);
+    return;
+  }
+  S.where[id] = { at: PLACE_IDS.includes(at) || at === 'with' || at === 'transit' ? at : 'away', note: String(note || '').slice(0, 80), d: S.day, t: S.min };
+}
+const isHere = id => { const w = whereOf(id); return w.at === 'with' || w.at === S.place; };
+const hereIds = () => Object.keys(S.people).filter(id => !S.people[id].noReply && isHere(id));
+function whereLabel(id) {
+  const w = whereOf(id);
+  if (w.at === 'with') return 'with the player';
+  if (w.at === 'transit') return 'on their way somewhere';
+  if (w.at === 'away') return w.note || 'somewhere off the map';
+  return (w.at === S.place ? 'HERE, at ' : 'at ') + PLACES[w.at].name + (w.note ? ' (' + w.note + ')' : '');
+}
+function peopleWhereText() {
+  const ids = Object.keys(S.people).filter(id => !S.people[id].noReply && (S.people[id].fam || S.people[id].met || isHere(id) || ['dev', 'priya'].includes(id)));
+  return `WHERE EVERYONE IS (facts; never contradict them; to move someone, use people_moved):\n${ids.map(id => `- ${S.people[id].name} (${id}): ${whereLabel(id)}`).join('\n')}`;
+}
+// Keep the people on screen in line with the record.
+function syncScene() {
+  if (!S.scene || S.scene.place !== S.place) return;
+  const ids = new Set(hereIds()), before = S.scene.present.map(p => p.id).join();
+  S.scene.present = S.scene.present.filter(p => ids.has(p.id));
+  for (const id of ids) if (!S.scene.present.find(p => p.id === id)) S.scene.present.push({ id, doing: '', pose: 'stand', says: null });
+  if (talking && !ids.has(talking)) endTalk('');
+  if (before !== S.scene.present.map(p => p.id).join()) { placeFigures(); renderActs(); }
+}
+function applyMoves(list) {
+  for (const m of (Array.isArray(list) ? list : []).slice(0, 4)) {
+    const id = String(m?.id || '').toLowerCase(); if (!S.people[id] || S.people[id].noReply) continue;
+    const to = String(m.to || '').toLowerCase();
+    if (to === 'here') setWhere(id, S.place, m.note); else if (PLACE_IDS.includes(to) || ['with', 'away', 'transit'].includes(to)) setWhere(id, to, m.note);
+  }
+}
 function wifeHome(min) { if (!isWeekday(S.day)) return min >= 8 * 60; return min < 7 * 60 + 35 || min >= 18 * 60 + 30; }
 // Each kid is tracked on their own: one can leave while the other stays with you.
 const KIDS = ['big', 'little'];
@@ -1311,7 +1359,7 @@ const kidsWhere = st => KIDS.filter(k => kst(k) === st);
 const kidNames = ids => ids.length === 2 ? 'the kids' : ids.map(id => nameOf(id).replace(/^Your /, 'your ')).join(' and ');
 function familyHere(place) {
   const out = [];
-  if (place === 'home' && wifeHome(S.min) && !S.wifeAway) out.push('wife');
+  { const w = whereOf('wife'); if (w.at === place || w.at === 'with') out.push('wife'); }
   for (const k of KIDS) {
     const st = kst(k), at = S.kid[k]?.at;
     if ((st === 'home' && place === 'home') || st === 'with' || (st === 'school' && place === 'school' && S.min >= 14 * 60 + 50) || (st === 'elsewhere' && at === place)) out.push(k);
@@ -1375,11 +1423,11 @@ function applyDeals(r, fromId) {
 // What happened contradicted a plan: someone stayed behind, refused, or the whole thing is off.
 function changePlan(c) {
   const p = S.plans.find(x => x.id === c?.id && x.status !== 'done'); if (!p) return;
-  const back = id => { if (KIDS.includes(id) && kst(id) === 'transit') { const f = p.kidFrom?.[id]; setK(id, f && f.st !== 'transit' ? f.st : (p.from === 'home' ? 'home' : 'with'), f?.at || null); } };
+  const back = id => { if (!KIDS.includes(id) && whereOf(id).at === 'transit') setWhere(id, p.from || 'away'); if (KIDS.includes(id) && kst(id) === 'transit') { const f = p.kidFrom?.[id]; setK(id, f && f.st !== 'transit' ? f.st : (p.from === 'home' ? 'home' : 'with'), f?.at || null); } };
   const drop = (Array.isArray(c.drop) ? c.drop : []).map(x => String(x).toLowerCase());
   if (c.cancel || drop.length >= p.who.length) { p.who.forEach(back); p.status = 'done'; p.result = 'called off'; logIt(`Called off: ${p.what}.`); tx('sys', `Off: ${p.who.map(nameOf).join(' and ')}: ${p.what}.`.replace(/ and Your /, ' and your ')); }
   else if (drop.length) { drop.forEach(back); p.who = p.who.filter(id => !drop.includes(id)); p.stayed = (p.stayed || []).concat(drop); logIt(`${drop.map(nameOf).join(' and ')} not part of: ${p.what}.`); }
-  placeFigures(); renderActs();
+  syncScene(); placeFigures(); renderActs();
 }
 const kidsIn = ids => ids.includes('big') || ids.includes('little');
 function ledgerText() {
@@ -1398,7 +1446,7 @@ function checkWorld(from, to) {
       p.who = p.who.filter(id => !KIDS.includes(id) || ['home', 'with', 'elsewhere'].includes(kst(id)));
       for (const k of p.who.filter(id => KIDS.includes(id))) { p.kidFrom ||= {}; p.kidFrom[k] = { ...S.kid[k] }; setK(k, 'transit'); }
       if (!p.who.length) { p.status = 'done'; p.result = 'never got going'; logIt(`Plan fell through: ${p.what}.`); continue; }
-      for (const id of p.who) if (!S.people[id]?.fam && p.to) S.people[id].haunt = p.to;
+      for (const id of p.who) if (!KIDS.includes(id)) setWhere(id, 'transit');
       if (S.scene) {
         const leaving = S.scene.present.filter(x => p.who.includes(x.id));
         if (talking && p.who.includes(talking)) endTalk('They had somewhere to be.');
@@ -1455,7 +1503,8 @@ Reply with ONLY one JSON object:
           else if (!end || end === 'home') setK(k, S.min >= 20 * 60 + 30 ? 'bed' : 'home');
           else setK(k, 'elsewhere', end);
         }
-        for (const id of item.who) if (!S.people[id]?.fam && end) S.people[id].haunt = end;
+        for (const id of item.who) if (!KIDS.includes(id)) { setWhere(id, end || 'away', end ? '' : 'went on with their day'); if (end && S.people[id].haunt == null) S.people[id].haunt = end; }
+        syncScene();
       } else item.result = outcome;
       logIt(outcome);
       for (const m of (Array.isArray(r?.remembers) ? r.remembers : []).slice(0, 2)) if (S.people[m?.id]) remember(m.id, String(m.text || '').slice(0, 80));
@@ -1527,6 +1576,7 @@ function setBusy(on, text) {
 }
 async function submitLine(raw) {
   let v = raw.trim(), m = mode; if (!v || busy) return;
+  if (auditing) { setBusy(true); await auditing; setBusy(false); }
   if (v.startsWith('?')) { m = 'think'; v = v.slice(1).trim(); }
   else if (/^["“]/.test(v)) { m = 'say'; v = v.replace(/^["“]\s*|\s*["”]$/g, ''); }
   $('line').value = ''; $('note').textContent = ''; renderCmd();
@@ -1539,6 +1589,32 @@ async function submitLine(raw) {
   return doAction(v);
 }
 
+/* ---------- continuity: a quick second look after every turn ---------- */
+let auditing = null;
+function runAudit() {
+  if (!S.transcript.length) return;
+  auditing = (async () => {
+    const r = await ask(`You check continuity for a slow, realistic life-simulation game. Compare what just happened with the recorded facts. Report ONLY clear contradictions: things the transcript plainly shows that the facts get wrong (someone recorded as gone who is plainly still here, an object recorded in the wrong place, a plan that plainly isn't happening as recorded). Do not speculate, do not invent, do not fix things the transcript doesn't settle. Most of the time there is nothing to fix.
+
+RECORDED FACTS
+${peopleWhereText()}
+${objectsText()}
+${ledgerText()}
+
+WHAT JUST HAPPENED (most recent last)
+${recentTranscript(12)}
+
+Reply with ONLY one JSON object: {"fixes": [0 to 4 {"kind": "person" or "object" or "plan", "id": "the id", "to": "person: a place id, 'with' or 'away'. object: 'player', a person id, a place id, an object id, or 'gone'", "drop": [person ids, for a plan], "cancel": true or false, "why": "a few plain words"}]}`, null, { modelTier: 'quick' });
+    const done = [];
+    for (const f of (Array.isArray(r?.fixes) ? r.fixes : []).slice(0, 4)) {
+      const id = String(f?.id || '').toLowerCase();
+      if (f.kind === 'person' && S.people[id] && f.to) { const before = whereLabel(id); applyMoves([{ id, to: f.to, note: '' }]); if (whereLabel(id) !== before) done.push(f.why || `${S.people[id].name}: ${whereLabel(id)}`); }
+      else if (f.kind === 'object' && S.objects[id] && f.to) { const before = S.objects[id].at; applyObjects({ objects: [{ id, name: S.objects[id].name, at: f.to }] }); if (S.objects[id]?.at !== before) done.push(f.why || S.objects[id]?.name); }
+      else if (f.kind === 'plan' && S.plans.find(x => x.id === f.id && x.status !== 'done')) { changePlan({ id: f.id, drop: f.drop, cancel: !!f.cancel }); done.push(f.why || 'plan updated'); }
+    }
+    if (done.length) { tx('sys', '↺ Continuity: ' + done.join('; ') + '.'); syncScene(); save(); }
+  })().catch(() => { }).finally(() => { auditing = null; });
+}
 /* ---------- saying things to people ---------- */
 let talking = null, talkCtl = null;
 function endTalk(why) {
@@ -1559,7 +1635,7 @@ async function sayTo(id, text) {
   talkCtl = new AbortController();
   const r = await ask(personPrompt(p, 'talk', tr), talkCtl);
   if (!r) { p.talk.pop(); setBusy(false); $('note').textContent = lastErr; return; }
-  applyFeelings(p, r); applyObjects(r);
+  applyFeelings(p, r); applyObjects(r); applyMoves(r.people_moved);
   const fig = figures.get(p.id);
   if (fig && r.gesture && GESTURES[r.gesture]) { fig.gesture = r.gesture; fig.gestureUntil = performance.now() / 1000 + 3.5; }
   if (fig) fig.base = fig.kind === 'sit' ? (p.regard < 42 ? 'guarded' : p.regard > 72 ? 'open' : 'neutral') : (p.regard < 40 ? 'guarded' : fig.child ? 'child' : 'stand');
@@ -1574,10 +1650,11 @@ async function sayTo(id, text) {
   offerDeals(r, p.id);                              // anything that sounded settled gets confirmed by you, not assumed
   advance(2);
   if (r.leaves && S.scene) {
+    if (!p.fam && isHere(p.id) && whereOf(p.id).at !== 'with') setWhere(p.id, 'away', 'left ' + PLACES[S.place].name);
     if (!p.fam) S.scene.present = S.scene.present.filter(x => x.id !== p.id);
     tx('event', `${p.name} ${p.fam ? 'wanders off' : 'goes'}.`); endTalk(''); placeFigures();
   }
-  save(); await flushCards();
+  syncScene(); save(); runAudit(); await flushCards();
 }
 // Agreements wait for your yes; requests and checked-off needs apply as they come.
 function offerDeals(r, fromId) {
@@ -1617,7 +1694,7 @@ async function doAction(text) {
   tx(can ? 'gm' : 'gm no', String(r.description || (can ? 'Done.' : "You can't, here and now.")).trim());
   advance(mins); S.energy = clamp(S.energy + (Number(r.energy) || 0), S.energy); hud();
   logIt(`${can ? 'Did' : 'Tried to'}: ${text.slice(0, 80)}. ${String(r.description || '').slice(0, 100)}`);
-  placeFigures(); setBusy(false); renderActs(); save();
+  syncScene(); placeFigures(); setBusy(false); renderActs(); save(); runAudit();
   if (can && (r.sleep === 'bed' || r.sleep === 'nap') && S.place === 'home') { await wait(1200); return rest(r.sleep === 'bed' ? 8 : 1); }
   if (can && PLACE_IDS.includes(r.go_to) && r.go_to !== S.place) { await wait(1200); return goTo(r.go_to); }
   await flushCards();
@@ -1724,13 +1801,13 @@ function openMind() {
 
 // Things that happen at set times. Each fires once per day.
 const CLOCK = [
-  { at: 7 * 60 + 35, id: 'wife-leaves', run: () => { if (!isWeekday(S.day)) return; if (S.place === 'home') note('Your wife leaves for her three buses.'); const kidsAround = KIDS.some(k => ['home', 'with'].includes(kst(k))); textFrom('wife', kidsAround ? "ok i'm off. kids need to be at school by 8:15. permission slip is on the counter" : "ok i'm off"); if (kidsAround) addNeed('Get the permission slip to school', 8 * 60 + 15, 'wife'); } },
+  { at: 7 * 60 + 35, id: 'wife-leaves', run: () => { if (!isWeekday(S.day)) return; setWhere('wife', 'away', 'at work in Marin (three buses each way)'); if (S.place === 'home') { note('Your wife leaves for her three buses.'); syncScene(); } const kidsAround = KIDS.some(k => ['home', 'with'].includes(kst(k))); textFrom('wife', kidsAround ? "ok i'm off. kids need to be at school by 8:15. permission slip is on the counter" : "ok i'm off"); if (kidsAround) addNeed('Get the permission slip to school', 8 * 60 + 15, 'wife'); } },
   { at: 8 * 60 + 40, id: 'absent', run: () => { const missing = KIDS.filter(k => !['school', 'transit'].includes(kst(k))); if (!isWeekday(S.day) || !missing.length) return; S.flags.absent = true; textFrom('school', `Sunset Elementary: ${missing.length === 2 ? 'Your children have' : 'Your ' + (missing[0] === 'big' ? 'older' : 'younger') + ' child has'} been marked absent today. Please call the office.`); remember('wife', 'kids marked absent from school'); setTimeout(() => textFrom('wife', 'why did the school just text me they\'re absent??'), 2500); } },
   { at: 10 * 60, id: 'mtg1', run: () => isWeekday(S.day) && meeting('Q4 roadmap sync', 'mtg1') },
   { at: 12 * 60 + 25, id: 'wife-noon', run: () => isWeekday(S.day) && aiText('wife', 'It is lunchtime at her office in Marin. She sends a short, ordinary midday text to the player, based on what she knows of the day so far.') },
   { at: 14 * 60, id: 'mtg2', run: () => isWeekday(S.day) && meeting('1:1 with Priya', 'mtg2') },
   { at: 15 * 60 + 35, id: 'pickup', run: () => { const left = kidsWhere('school'); if (!left.length) return; left.forEach(k => setK(k, 'aftercare')); textFrom('school', 'Sunset Elementary: Your children were not picked up and have been placed in aftercare ($35).'); S.balance -= 35; remember('wife', 'the school called her at work about pickup'); remember('little', 'waited at pickup and nobody came'); setTimeout(() => textFrom('wife', "the school called me. at work. in marin. i'll get them on my way home"), 3000); } },
-  { at: 18 * 60 + 30, id: 'wife-home', run: () => { if (!isWeekday(S.day)) return; kidsWhere('aftercare').forEach(k => setK(k, 'home')); if (S.place !== 'home') aiText('wife', 'She just got home after three buses. The player is not home. She texts to find out where they are, given what she knows.'); } },
+  { at: 18 * 60 + 30, id: 'wife-home', run: () => { if (!isWeekday(S.day)) return; kidsWhere('aftercare').forEach(k => setK(k, 'home')); setWhere('wife', 'home'); if (S.place === 'home') { note('Your wife comes in, shaking off the bus.'); syncScene(); } if (S.place !== 'home') aiText('wife', 'She just got home after three buses. The player is not home. She texts to find out where they are, given what she knows.'); } },
   { at: 20 * 60 + 30, id: 'bedtime', run: () => { kidsWhere('home').forEach(k => setK(k, 'bed')); if (kidsWhere('with').length) aiText('wife', "It's the kids' bedtime and the player still has both kids out. She texts about it."); } },
   { at: 21 * 60 + 40, id: 'dev-ping', run: () => S.day === 1 && textFrom('dev', "lol we're hiring again. want me to put your name in?") },
   { at: 23 * 60 + 48, id: 'halcyon', run: () => { if (S.day !== 1) return; S.flags.halcyon = true; textFrom('halcyon', 'Re: Product Manager, Agents — Thank you for the time you spent with our team. After careful consideration, we have decided to move forward with other candidates.'); logIt('A rejection email from Halcyon.'); } },
@@ -1757,6 +1834,7 @@ function ensurePerson(e) {
   if (!id) return null;
   if (!S.people[id]) S.people[id] = { id, name: String(e.name || 'someone').slice(0, 40), who: String(e.who || '').slice(0, 200), bio: String(e.who || ''), haunt: S.place, look: e.look || {}, regard: 50, company: 50, memories: [], facts: [], hasNumber: false, met: false };
   const p = S.people[id];
+  if (!S.where[id] && !p.fam) setWhere(id, S.place);
   if (!p.met && e.name) p.name = String(e.name).slice(0, 40);
   return p;
 }
@@ -1807,11 +1885,12 @@ const DIRECTOR_FORMAT = `Reply with ONLY one JSON object:
  "energy": change in the player's energy, usually 0,
  "objects": [0 to 5 objects that matter whose existence or location is established or changed by this, each {"id": "known id or a new slug", "name": "short", "at": "here" or "player" or a person id or a place id or an object id (inside it) or "gone", "where": "short detail, e.g. 'on the kitchen counter'"}],
  "sleep": null, or "bed" if the player is going to bed for the night (only at home), or "nap" if lying down to rest,
- "plans_changed": [0 to 2 {"id": "a plan id from Plans in motion", "drop": [ids of people no longer part of it], "cancel": true if it is off entirely}] whenever what happened contradicts a plan (someone stayed behind, refused, or the player took over)}
+ "plans_changed": [0 to 2 {"id": "a plan id from Plans in motion", "drop": [ids of people no longer part of it], "cancel": true if it is off entirely}] whenever what happened contradicts a plan (someone stayed behind, refused, or the player took over),
+ "people_moved": [0 to 3 {"id": "a known person id", "to": "a place id, or \"here\", or \"with\" (now going along with the player), or \"away\" (somewhere off the map)", "note": "short, e.g. 'at work in Marin'"}] whenever a known person arrives, leaves, or starts tagging along}
 Objects listed as facts are facts. If something moved, report it in objects; if it isn't listed, you may establish it. Cash that changes hands is an object too (e.g. "a ten-dollar bill"): record who holds it.`;
 
 async function direct(kind, extra = '') {
-  const here = familyHere(S.place).map(id => S.people[id].name).join(', ');
+  const here = hereIds().map(id => S.people[id].name).join(', ');
   const prev = S.scene && S.scene.place === S.place ? `\nWhat was going on here a moment ago: ${S.scene.desc} People here: ${(S.scene.present || []).map(p => `${p.id} (${p.doing})`).join(', ') || 'nobody'}.` : '';
   const task = {
     arrive: 'The player has just arrived here. Describe what is going on.',
@@ -1825,7 +1904,7 @@ async function direct(kind, extra = '') {
 
 THE WORLD RIGHT NOW
 ${contextText()}
-Family here right now (must be present): ${here || 'none'}.${prev}
+${peopleWhereText()}\nPeople here right now (include them in \"present\" unless they leave): ${here || 'none'}.${prev}
 
 PEOPLE THE WORLD KNOWS
 ${rosterText()}
@@ -1845,22 +1924,30 @@ const FALLBACK = {
   tide: 'Red neon, a jukebox nobody is choosing songs on, two regulars at the bar who have clearly been here a while.',
 };
 function applyScene(r, kind) {
-  const present = [], forced = familyHere(S.place);
+  applyMoves(r?.people_moved);
   const fromModel = Array.isArray(r?.present) && r.present.length > 0;
-  for (const e of (fromModel ? r.present : []).slice(0, 4)) {
-    const id = String(e.id || '').toLowerCase();
-    const known = S.people[id];
-    const plan = S.plans.find(pl => pl.status === 'underway' && pl.who.includes(id));
-    if (plan && KIDS.includes(id) && plan.from === S.place && kind === 'act') { changePlan({ id: plan.id, drop: [id] }); forced.push(id); }   // the scene says this kid never left
-    else if (plan) continue;                                                     // people out doing what they agreed to are not here
-    if (known?.fam && !forced.includes(id)) continue;                          // family can't be in two places
+  const present = [];
+  for (const e of (fromModel ? r.present : []).slice(0, 5)) {
+    const id = String(e.id || '').toLowerCase(), known = S.people[id];
     if (['priya', 'school', 'halcyon'].includes(id)) continue;
+    if (known) {
+      const plan = S.plans.find(pl => pl.status === 'underway' && pl.who.includes(id));
+      if (plan) { if (plan.from === S.place && kind === 'act') changePlan({ id: plan.id, drop: [id] }); else continue; }   // out doing what they agreed to, unless the scene says they never left
+      else if (known.fam && !isHere(id)) continue;                                  // family whereabouts come from the record
+      else if (!known.fam && !isHere(id)) setWhere(id, S.place);                    // someone you know turning up here is a move
+    }
     const p = ensurePerson(e); if (!p) continue;
     if (!known && e.look) p.look = e.look;
+    if (present.some(x => x.id === p.id)) continue;
     present.push({ id: p.id, doing: String(e.doing || '').slice(0, 80), pose: ['stand', 'sit', 'phone'].includes(e.pose) ? e.pose : 'stand', says: e.says ? String(e.says).slice(0, 200) : null });
   }
-  for (const id of forced) if (!present.find(p => p.id === id)) present.push({ id, doing: 'here', pose: 'stand', says: null });
-  if (kind === 'act' && S.scene) { if (fromModel) S.scene.present = present; else S.scene.present = S.scene.present.filter(p => !S.people[p.id]?.fam || forced.includes(p.id)); }
+  // The record wins: anyone recorded as here is here, unless the director just had them leave the scene.
+  const prevHere = kind === 'act' && S.scene ? S.scene.present.map(x => x.id) : [];
+  for (const id of hereIds()) if (!present.find(p => p.id === id)) {
+    if (fromModel && kind === 'act' && prevHere.includes(id) && !S.people[id]?.fam && whereOf(id).at !== 'with') { setWhere(id, 'away', 'left ' + PLACES[S.place].name); continue; }
+    present.push({ id, doing: (S.scene?.present || []).find(x => x.id === id)?.doing || '', pose: 'stand', says: null });
+  }
+  if (kind === 'act' && S.scene) S.scene.present = present;
   else {
     S.scene = { place: S.place, desc: String(r?.description || FALLBACK[S.place]).trim(), present };
     tx('place', `${PLACES[S.place].name} · ${weekday(S.day)}, ${fmt(S.min)}`);
@@ -1902,6 +1989,7 @@ RIGHT NOW
 ${weekday(S.day)}, ${fmt(S.min)}. ${mode === 'text' ? `You are wherever you would be at this hour.` : `${PLACES[S.place].name}. ${scene}${others ? ' Also here: ' + others + '.' : ''}`} ${p.fam ? kidsLine() : ''}
 ${S.flags.halcyon && (p.fam || p.id === 'dev') ? '' : ''}
 ${ledgerText()}
+${peopleWhereText()}
 The player is carrying: ${Object.values(S.objects).filter(o => o.at === 'player').map(o => o.name).join(', ') || 'nothing much'}. ${Object.values(S.objects).filter(o => o.at === 'person:' + p.id).map(o => 'You have: ' + o.name + '.').join(' ')}
 
 ${FEEL_RULES}
@@ -1927,7 +2015,8 @@ Reply with ONLY one JSON object:
  "asks": [0 to 2 things you now expect the player to do (a request you made or a promise they made you), each {"text": "short", "by": "HH:MM 24-hour or null"}],
  "needs_met": [ids of open needs that this conversation settled],
  "plans_changed": [0 to 2 {"id": "a plan id from Plans in motion", "drop": [ids no longer part of it], "cancel": true if it's off}] if this conversation undid or changed an agreed plan,
- "objects": [0 to 3 objects that changed hands in this exchange, each {"id","name","at": "player" or a person id or "here","where"}]}
+ "objects": [0 to 3 objects that changed hands in this exchange, each {"id","name","at": "player" or a person id or "here","where"}],
+ "people_moved": [0 to 2 {"id": "your id or another known id", "to": "a place id, \"with\" (going along with the player), or \"away\"", "note": "short"}] if you or someone else is now going somewhere}
 Your id is "${p.id}". Do not repeat agreements or asks that are already open.`;
 }
 function applyFeelings(p, r) {
@@ -2046,13 +2135,14 @@ async function flushCards() {
 function flushWorldSoon() { flushWorld(); }
 /* ---------- moving around ---------- */
 async function goTo(dest) {
+  if (auditing) await auditing;
   closeMap(); closePhone(); closeSheet(); if (talking) endTalk();
   const from = S.place, tr = travel(from, dest);
   // a kid at home comes with you if there's no other grown-up home, or it's a school morning; not if they've agreed to their own plan
   for (const k of KIDS) {
     if (from !== 'home' || kst(k) !== 'home') continue;
     if (S.plans.some(p => p.status === 'pending' && p.who.includes(k))) continue;
-    if ((isWeekday(S.day) && S.min < 15 * 60) || !wifeHome(S.min)) setK(k, 'with');
+    if ((isWeekday(S.day) && S.min < 15 * 60) || whereOf('wife').at !== 'home') setK(k, 'with');
   }
   const withKids = kidsWhere('with').length ? ' with ' + kidNames(kidsWhere('with')) : '';
   tx('sys', `${tr.how === 'N-Judah' ? 'You take the N' : 'You walk'} ${dest === 'home' ? 'home' : 'to ' + PLACES[dest].name}${withKids}. ${tr.min} min.`);
@@ -2087,7 +2177,7 @@ Still undone: ${S.needs.filter(n => n.status === 'open').map(n => n.text).join('
 Reply with ONLY JSON: {"summary": "the day as 3 or 4 short film-slate lines, second person, past tense, plain and specific, separated by newlines", "tomorrow_weather": "short, e.g. 'fog, 55°F' or 'clear and windy, 64°F'"}`);
   const day = S.day, summary = r?.summary ? String(r.summary) : 'The day happened. Some of it on purpose.';
   logIt('Went to bed.');
-  S.day += 1; S.min = 7 * 60 + 5; S.energy = clamp(Math.min(90, 55 + S.energy * .4 + 25), 70); S.spent = 0; S.kid = { big: { st: 'home', at: null }, little: { st: 'home', at: null } }; S.place = 'home'; S.convo = null;
+  S.day += 1; S.min = 7 * 60 + 5; S.energy = clamp(Math.min(90, 55 + S.energy * .4 + 25), 70); S.spent = 0; S.kid = { big: { st: 'home', at: null }, little: { st: 'home', at: null } }; S.where = freshWhere(); S.place = 'home'; S.convo = null;
   S.weather = r?.tomorrow_weather ? String(r.tomorrow_weather).slice(0, 40) : 'fog, 56°F'; S.flags.dropped = false; S.flags.absent = false; S.scene = null;
   S.needs = S.needs.filter(n => n.status === 'open').map(n => ({ ...n, by: null })); S.plans = [];
   for (const k of Object.keys(S.flags)) if (k.endsWith(':' + day)) delete S.flags[k];
@@ -2126,6 +2216,7 @@ function renderSide(p) {
     if (p.memories.length) { add('label', 'Will remember'); const ul = document.createElement('ul'); p.memories.forEach(m => { const li = document.createElement('li'); li.textContent = m; ul.append(li); }); el.append(ul); }
   } else {
     add('label', 'Loose ends'); if (S.threads.length) { const ul = document.createElement('ul'); S.threads.forEach(t => { const li = document.createElement('li'); li.textContent = t; ul.append(li); }); el.append(ul); } else add('', 'None yet.');
+    add('label', 'Where people are'); { const u2 = document.createElement('ul'); Object.keys(S.people).filter(id => !S.people[id].noReply).forEach(id => { const li = document.createElement('li'); li.textContent = `${S.people[id].name}: ${whereLabel(id).replace('HERE, at ', 'here, ')}`; u2.append(li); }); el.append(u2); }
     add('label', 'People in your world'); const ul = document.createElement('ul');
     Object.values(S.people).filter(x => !x.noReply).forEach(x => { const li = document.createElement('li'); li.textContent = `${x.name} · ${x.regard}${x.memories.length ? ' · ' + x.memories.slice(-1)[0] : ''}`; ul.append(li); }); el.append(ul);
     add('label', 'Work standing'); const m = add('meter', ''); const b = document.createElement('b'); b.style.width = S.work + '%'; m.append(b);
@@ -2258,6 +2349,7 @@ $('sheet-close').onclick = closeSheet;
 function buildLog() {
   const L = [`ONE OPEN DAY LOG · ${weekday(S.day)} (day ${S.day}), ${fmt(S.min)} · at ${PLACES[S.place].name}`, '', '== TRANSCRIPT ==',
     ...S.transcript.map(e => `[d${e.d} ${fmtAp(e.m)}] ` + (e.k === 'you' ? `${e.tag}: ${e.text}` : e.k === 'npc' ? `${e.who}: "${e.text}"` : e.k === 'phone' ? `PHONE ${e.who}: ${e.text}` : `${e.k.toUpperCase()}: ${e.text}`)),
+    '', '== WHERE EVERYONE IS ==', ...Object.keys(S.people).filter(id => !S.people[id].noReply).map(id => `${id}: ${whereLabel(id)}`),
     '', '== KIDS ==', `older: ${JSON.stringify(S.kid.big)} · younger: ${JSON.stringify(S.kid.little)}`,
     '', '== PLANS ==', ...S.plans.map(p => `${p.id} ${p.status}: ${p.who.join('+')} · ${p.what} · ${fmtAp(p.at)}–${fmtAp(p.until)}${p.stayed ? ' · stayed: ' + p.stayed.join('+') : ''}${p.result ? ' · ' + p.result : ''}`),
     '', '== NEEDS ==', ...S.needs.map(n => `${n.id} ${n.status}: ${n.text}${n.by ? ' · by ' + fmtAp(n.by) : ''}${n.from ? ' · ' + n.from : ''}`),
@@ -2294,7 +2386,7 @@ async function boot() {
   const intro = `The Outer Sunset, present day. You are 47, a product manager with two kids, a wife who takes three buses to Marin, and a condo at 46th and Judah.\n\nNothing is required of you. Go where you want. People remember.`;
   if (saved && saved.v === 1 && saved.people) {
     card('', 'One Open Day', intro, [[`Continue: ${weekday(saved.day)}, ${fmt(saved.min)}`, async () => {
-      S = saved; S.needs ||= []; S.plans ||= []; S.transcript ||= []; S.objects ||= freshWorld().objects; S.kid ||= { big: { st: S.kids || 'home', at: S.kidsAt || null }, little: { st: S.kids || 'home', at: S.kidsAt || null } }; hideCard(); renderLog(); renderCmd(); setStage(PLACES[S.place].stage, PLACES[S.place].dress, true); hud();
+      S = saved; S.needs ||= []; S.plans ||= []; S.transcript ||= []; S.objects ||= freshWorld().objects; S.where ||= Object.assign(freshWhere(), { wife: { at: wifeHome(S.min) ? 'home' : 'away', note: wifeHome(S.min) ? '' : 'at work in Marin', d: S.day, t: S.min } }); S.kid ||= { big: { st: S.kids || 'home', at: S.kidsAt || null }, little: { st: S.kids || 'home', at: S.kidsAt || null } }; hideCard(); renderLog(); renderCmd(); setStage(PLACES[S.place].stage, PLACES[S.place].dress, true); hud();
       if (!S.scene || S.scene.place !== S.place) { setBusy(true, 'Picking up where you left off…'); const r = await direct('arrive'); applyScene(r, 'arrive'); setBusy(false); }
       placeFigures(); renderActs(); await flushCards();
     }, true], ['Start a new world', () => $('b-restart').click()]], true);
